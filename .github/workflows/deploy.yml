@@ -60,7 +60,4 @@ jobs:
         script: |
           cd /var/www/sms-laravel
           cp .env.example .env || true
-          php artisan key:generate
-          php artisan migrate --force
-          php artisan storage:link
-          php artisan optimize:clear
+          

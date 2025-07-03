@@ -62,8 +62,5 @@ jobs:
           cd /var/www/sms-laravel
           composer install --no-dev --optimize-autoloader
           cp .env.example .env || true
-          php artisan config:clear
-          php artisan cache:clear
-          php artisan view:clear
-
+          
     

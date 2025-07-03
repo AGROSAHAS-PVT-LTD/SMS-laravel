@@ -1,38 +1,55 @@
-name: Deploying to VPS
+name: Deploy Laravel Application to Production Server
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v3
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v3
 
-    - name: Install dependencies
-      run: |
-        composer install --no-dev --prefer-dist --optimize-autoloader
-        npm install
-        npx update-browserslist-db@latest
-        npm install vue-loader@latest
-
-    - name: Setup SSH
-      uses: webfactory/ssh-agent@v0.7.0
+    - name: 🧰 Setup PHP
+      uses: shivammathur/setup-php@v2
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        php-version: 8.3
 
-    - name: Deploy to VPS
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
-          mkdir -p ${{ secrets.DEPLOY_PATH }} &&
-          git clone https://github.com/${{ github.repository }}.git ${{ secrets.DEPLOY_PATH }} &&
-          cd ${{ secrets.DEPLOY_PATH }} &&
-          composer install --no-dev --prefer-dist --optimize-autoloader &&
-          npm install &&
-          npx update-browserslist-db@latest &&
-          npm install vue-loader@latest &&
-          cp .env.example .env &&
-          php artisan storage:link &&
+    - name: 🧩 Install Composer Dependencies
+      run: composer install --optimize-autoloader --no-dev --no-progress --no-interaction --prefer-dist
+
+    - name: 🧱 Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+
+    - name: 📦 Install NPM Dependencies
+      run: npm ci
+
+
+    - name: 🚀 Synchronize Files to Server
+      uses: easingthemes/ssh-deploy@v2.1.5
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        REMOTE_HOST: ${{ secrets.VPS_HOST }}
+        REMOTE_USER: ${{ secrets.VPS_USER }}
+        SOURCE: "."
+        TARGET: "/var/www/sms-laravel"
+        EXCLUDE: ".env,node_modules,vendor,.git,.github"
+
+    - name: ⚙️ Run Remote Laravel Artisan Commands
+      uses: appleboy/ssh-action@v0.1.6
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd /var/www/sms-laravel
+          cp .env.example .env || true
+          php artisan key:generate
+          php artisan migrate --force
+          php artisan storage:link
           php artisan optimize:clear
-        "

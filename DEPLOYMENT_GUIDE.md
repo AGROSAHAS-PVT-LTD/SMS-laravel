@@ -43,7 +43,8 @@ Create `/etc/nginx/sites-available/sms-laravel` with:
 ```nginx
 server {
     listen 80;
-    server_name sms.your_domain.com;  # Replace with your actual subdomain
+    # server_name sms.your_domain.com;  # Replace with your actual subdomain
+    server_name 84.46.250.62
     root /var/www/sms-laravel/public;
 
     index index.php index.html;

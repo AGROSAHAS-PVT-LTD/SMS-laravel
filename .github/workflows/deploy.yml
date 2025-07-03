@@ -50,6 +50,13 @@ jobs:
           --exclude vendor
           --exclude .git
           --exclude .github
+          --exclude storage/*.key
+          --exclude storage/app/*
+          --exclude storage/debugbar/*
+          --exclude storage/framework/cache/*
+          --exclude storage/framework/sessions/*
+          --exclude storage/framework/views/*
+          --exclude bootstrap/cache/*
 
     - name: ⚙️ Run Remote Laravel Artisan Commands
       uses: appleboy/ssh-action@v0.1.6

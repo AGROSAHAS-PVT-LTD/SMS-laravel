@@ -16,7 +16,6 @@ jobs:
         npm install
         npx update-browserslist-db@latest
         npm install vue-loader@latest
-        npm run prod
 
     - name: Setup SSH
       uses: webfactory/ssh-agent@v0.7.0
@@ -33,7 +32,6 @@ jobs:
           npm install &&
           npx update-browserslist-db@latest &&
           npm install vue-loader@latest &&
-          npm run prod &&
           cp .env.example .env &&
           php artisan storage:link &&
           php artisan optimize:clear

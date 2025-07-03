@@ -9,9 +9,14 @@
 Run these commands on your VPS:
 
 ```bash
-# Install required software
+# Install required software (PHP 8.2+)
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y nginx mysql-server php-fpm php-mysql php-mbstring php-xml php-zip php-curl composer nodejs npm git
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:ondrej/php -y
+sudo apt update
+sudo apt install -y nginx mysql-server php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-zip php8.2-curl composer nodejs npm git
+npm install -g vue@latest
+npm install -g @vue/cli
 
 # Configure MySQL
 sudo mysql_secure_installation
@@ -29,13 +34,16 @@ sudo chown -R $USER:$USER /var/www/sms-laravel
    - `SSH_HOST`: VPS IP address
    - `DEPLOY_PATH`: Deployment path (e.g. '/var/www/sms-laravel')
 
+## DNS Configuration
+1. Create an A record in your DNS management panel pointing your subdomain (e.g., sms.your_domain.com) to your VPS IP address
+
 ## Nginx Configuration
 Create `/etc/nginx/sites-available/sms-laravel` with:
 
 ```nginx
 server {
     listen 80;
-    server_name your_domain.com;
+    server_name sms.your_domain.com;  # Replace with your actual subdomain
     root /var/www/sms-laravel/public;
 
     index index.php index.html;
@@ -46,7 +54,7 @@ server {
 
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
     }
 
     location ~ /\.ht {
@@ -67,4 +75,6 @@ sudo systemctl restart nginx
 2. SSH into VPS and complete setup:
 ```bash
 cd /var/www/sms-laravel
+npx update-browserslist-db@latest
+npm install vue-loader@latest
 php artisan migrate --seed

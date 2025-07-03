@@ -34,23 +34,28 @@ jobs:
         npx update-browserslist-db@latest
         npm install vue-loader@latest
 
-
     - name: 🚀 Synchronize Files to Server
       uses: easingthemes/ssh-deploy@v2.1.5
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      with:  
-        REMOTE_HOST: ${{ secrets.VPS_HOST }}
-        REMOTE_USER: ${{ secrets.VPS_USER }}
+      with:
+        REMOTE_HOST: ${{ secrets.SSH_HOST }}
+        REMOTE_USER: ${{ secrets.SSH_USER }}
         SOURCE: "."
         TARGET: "/var/www/sms-laravel"
-        EXCLUDE: ".env,node_modules,vendor,.git,.github"
+        ARGS: >
+          -rltgoDzvO --delete
+          --exclude .env
+          --exclude node_modules
+          --exclude vendor
+          --exclude .git
+          --exclude .github
 
     - name: ⚙️ Run Remote Laravel Artisan Commands
       uses: appleboy/ssh-action@v0.1.6
       with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           cd /var/www/sms-laravel

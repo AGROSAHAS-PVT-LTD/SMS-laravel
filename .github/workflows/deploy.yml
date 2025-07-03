@@ -16,7 +16,9 @@ jobs:
     - name: 🧰 Setup PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: 8.3
+        php-version: '8.2'
+        extensions: mbstring, xml, zip, curl, mysql
+        tools: composer:v2
 
     - name: 🧩 Install Composer Dependencies
       run: composer install --optimize-autoloader --no-dev --no-progress --no-interaction --prefer-dist
@@ -27,13 +29,17 @@ jobs:
         node-version: '20'
 
     - name: 📦 Install NPM Dependencies
-      run: npm ci
+      run: |
+        npm ci
+        npx update-browserslist-db@latest
+        npm install vue-loader@latest
 
 
     - name: 🚀 Synchronize Files to Server
       uses: easingthemes/ssh-deploy@v2.1.5
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      with:  
         REMOTE_HOST: ${{ secrets.VPS_HOST }}
         REMOTE_USER: ${{ secrets.VPS_USER }}
         SOURCE: "."

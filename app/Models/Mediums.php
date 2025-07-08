@@ -22,23 +22,24 @@ class Mediums extends Model
         // if (Auth::user()->hasRole('Guardian')) {
         //     return $query->where('school_id', Auth::user()->school_id);
         // }
-
-        if (Auth::user()->school_id) {
-            if (Auth::user()->hasRole('School Admin')) {
-                return $query->where('school_id', Auth::user()->school_id);
-            }
-    
-            if (Auth::user()->hasRole('Student')) {
-                return $query->where('school_id', Auth::user()->school_id);
-            }
-            return $query->where('school_id', Auth::user()->school_id);
-        }
+        if (Auth::user()) {
+            if (Auth::user()->school_id) {
+                if (Auth::user()->hasRole('School Admin')) {
+                    return $query->where('school_id', Auth::user()->school_id);
+                }
         
-        if (!Auth::user()->school_id) {
-            if (Auth::user()->hasRole('Super Admin')) {
+                if (Auth::user()->hasRole('Student')) {
+                    return $query->where('school_id', Auth::user()->school_id);
+                }
+                return $query->where('school_id', Auth::user()->school_id);
+            }
+            
+            if (!Auth::user()->school_id) {
+                if (Auth::user()->hasRole('Super Admin')) {
+                    return $query;
+                }
                 return $query;
             }
-            return $query;
         }
 
         return $query;

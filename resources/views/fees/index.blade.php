@@ -136,6 +136,10 @@
                                                 {{ Form::text('name', null, ['class' => 'form-control installment-name', 'placeholder' => __('installment') . ' ' . __('name'), 'required']) }}
                                             </div>
                                             <div class="form-group col-lg-12 col-xl-3">
+                                                <label>{{ __('amount') }} <span class="text-danger">*</span></label>
+                                                {{ Form::number('amount', null, ['class' => 'form-control installment-amount', 'placeholder' => __('amount'), 'required', 'min' => 0, "data-convert" => "number"]) }}
+                                            </div>
+                                            <div class="form-group col-lg-12 col-xl-3">
                                                 <label>{{ __('due_date') }} <span class="text-danger">*</span></label>
                                                 {{ Form::text('due_date', null, ['class' => 'datepicker-popup-no-past form-control installment-due-date', 'placeholder' => __('due_date'),'autocomplete'=>'off' ,'required']) }}
                                             </div>
@@ -271,7 +275,7 @@
                                         <th scope="col" data-field="class.full_name" data-visible="false">{{__('Class')}}</th>
                                         <th scope="col" data-field="due_date" data-sortable="true">{{__('due_date')}}</th>
                                         <th scope="col" data-field="due_charges" data-align="center">{{__('due_charges')}} <small>(%)</small></th>
-                                        <th scope="col" data-field="installments" data-sortable="true" data-formatter="feesInstallmentFormatter">{{__('Fees Installment')}}</th>
+                                        <th scope="col" data-field="installments" data-formatter="feesInstallmentFormatter">{{__('Fees Installment')}}</th>
                                         <th scope="col" data-field="fees_type" data-align="left" data-formatter="feesTypeFormatter">{{ __('Fees') }} {{__('type')}}</th>
                                         <th scope="col" data-field="compulsory_fees" data-align="center">{{ __('Compulsory Amount')}}</th>
                                         <th scope="col" data-field="total_fees" data-align="center">{{ __('Total Amount')}}</th>
@@ -297,5 +301,135 @@
             $('.fees-installment-repeater [data-repeater-item]').slice(0).empty();
             $('.fees-installment-repeater').hide();
         }
+
+        // Handle installment amount calculations
+        $(document).ready(function() {
+            // Function to calculate total fees amount
+            function calculateTotalAmount() {
+                let totalAmount = 0;
+                // Calculate compulsory fees
+                $('.compulsory-fees-types .amount').each(function() {
+                    let amount = parseFloat($(this).val()) || 0;
+                    totalAmount += amount;
+                });
+
+                // Calculate optional fees
+                $('.optional-fees-types .amount').each(function() {
+                    let amount = parseFloat($(this).val()) || 0;
+                    totalAmount += amount;
+                });
+                return totalAmount;
+            }
+
+            // Function to update installment amounts
+            function updateInstallmentAmounts() {
+                let totalAmount = calculateTotalAmount();
+                let $installments = $('.fees-installment-repeater [data-repeater-item]');
+                let totalInstallments = $installments.length;
+
+                if (totalInstallments === 1) {
+                    // If only one installment, set full amount
+                    $installments.find('.installment-amount').val(totalAmount.toFixed(2));
+                } else if (totalInstallments > 1) {
+                    // Calculate equal amount for first (n-1) installments
+                    let equalInstallments = totalInstallments - 1;
+                    let equalAmount = Math.floor((totalAmount / equalInstallments) * 100) / 100;
+                    
+                    // Set equal amounts for first (n-1) installments
+                    let totalEqualAmount = 0;
+                    $installments.each(function(index) {
+                        if (index < equalInstallments) {
+                            $(this).find('.installment-amount').val(equalAmount.toFixed(2));
+                            totalEqualAmount += equalAmount;
+                        }
+                    });
+                    
+                    // Last installment gets remaining balance
+                    let remainingAmount = (totalAmount - totalEqualAmount).toFixed(2);
+                    $installments.last().find('.installment-amount').val(remainingAmount);
+                }
+            }
+
+            // Function to handle dynamic installment amount changes
+            function handleInstallmentAmountChange(changedIndex) {
+                let totalAmount = calculateTotalAmount();
+                let $installments = $('.fees-installment-repeater [data-repeater-item]');
+                let totalInstallments = $installments.length;
+                
+                // Get the changed amount
+                let changedAmount = parseFloat($installments.eq(changedIndex).find('.installment-amount').val()) || 0;
+                
+                // If last installment was changed, adjust the first (n-1) installments equally
+                if (changedIndex === totalInstallments - 1) {
+                    let remainingAmount = totalAmount - changedAmount;
+                    let equalInstallments = totalInstallments - 1;
+                    let equalAmount = Math.floor((remainingAmount / equalInstallments) * 100) / 100;
+                    
+                    $installments.each(function(index) {
+                        if (index < equalInstallments) {
+                            $(this).find('.installment-amount').val(equalAmount.toFixed(2));
+                        }
+                    });
+                } else {
+                    // If any other installment was changed
+                    let totalEqualAmount = 0;
+                    let equalInstallments = totalInstallments - 1;
+                    
+                    // Calculate total of equal installments
+                    $installments.each(function(index) {
+                        if (index < equalInstallments) {
+                            let amount = parseFloat($(this).find('.installment-amount').val()) || 0;
+                            totalEqualAmount += amount;
+                        }
+                    });
+                    
+                    // Set remaining amount to last installment
+                    let remainingAmount = (totalAmount - totalEqualAmount).toFixed(2);
+                    $installments.last().find('.installment-amount').val(remainingAmount);
+                }
+            }
+
+            // Listen for changes in compulsory fees amount
+            $(document).on('input', '.compulsory-fees-types .amount', function() {
+                updateInstallmentAmounts();
+            });
+
+            // Listen for changes in optional fees amount
+            $(document).on('input', '.optional-fees-types .amount', function() {
+                updateInstallmentAmounts();
+            });
+
+            // Listen for changes in any installment amount
+            $(document).on('input', '.fees-installment-repeater [data-repeater-item] .installment-amount', function() {
+                let changedIndex = $(this).closest('[data-repeater-item]').index();
+                handleInstallmentAmountChange(changedIndex);
+            });
+
+            // Listen for installment addition
+            $(document).on('click', '#add-installment', function() {
+                setTimeout(updateInstallmentAmounts, 100);
+            });
+
+            // Listen for installment removal
+            $(document).on('click', '[data-repeater-delete]', function() {
+                setTimeout(updateInstallmentAmounts, 100);
+            });
+
+            // Handle fees installment toggle
+            $('.fees-installment-toggle').change(function() {
+                if ($(this).val() == '1') {
+                    $('.fees-installment-repeater').show();
+                    updateInstallmentAmounts();
+                } else {
+                    $('.fees-installment-repeater').hide();
+                    $('.fees-installment-repeater [data-repeater-item]').slice(0).empty();
+                }
+            });
+
+            // Initialize if installments are enabled
+            if ($('.fees-installment-toggle:checked').val() == '1') {
+                updateInstallmentAmounts();
+            }
+        });
     </script>
 @endsection

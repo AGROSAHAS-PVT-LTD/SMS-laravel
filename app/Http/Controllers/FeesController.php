@@ -21,6 +21,7 @@ use App\Repositories\Student\StudentInterface;
 use App\Repositories\SystemSetting\SystemSettingInterface;
 use App\Repositories\User\UserInterface;
 use App\Services\BootstrapTableService;
+use App\Services\SessionYearsTrackingsService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -29,6 +30,7 @@ use DateTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -53,8 +55,9 @@ class FeesController extends Controller
     private PaymentTransactionInterface $paymentTransaction;
     private SystemSettingInterface $systemSetting;
     private ClassSectionInterface $classSection;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(FeesInterface $fees, SessionYearInterface $sessionYear, FeesInstallmentInterface $feesInstallment, SchoolSettingInterface $schoolSettings, MediumInterface $medium, FeesTypeInterface $feesType, ClassSchoolInterface $classes, FeesClassTypeInterface $feesClassType, UserInterface $user, FeesPaidInterface $feesPaid, CompulsoryFeeInterface $compulsoryFee, OptionalFeeInterface $optionalFee, CachingService $cache, PaymentConfigurationInterface $paymentConfigurations, ClassSchoolInterface $classSchool, StudentInterface $student, PaymentTransactionInterface $paymentTransaction, SystemSettingInterface $systemSetting, ClassSectionInterface $classSection)
+    public function __construct(FeesInterface $fees, SessionYearInterface $sessionYear, FeesInstallmentInterface $feesInstallment, SchoolSettingInterface $schoolSettings, MediumInterface $medium, FeesTypeInterface $feesType, ClassSchoolInterface $classes, FeesClassTypeInterface $feesClassType, UserInterface $user, FeesPaidInterface $feesPaid, CompulsoryFeeInterface $compulsoryFee, OptionalFeeInterface $optionalFee, CachingService $cache, PaymentConfigurationInterface $paymentConfigurations, ClassSchoolInterface $classSchool, StudentInterface $student, PaymentTransactionInterface $paymentTransaction, SystemSettingInterface $systemSetting, ClassSectionInterface $classSection, SessionYearsTrackingsService $sessionYearsTrackingsService)
     {
         $this->fees = $fees;
         $this->sessionYear = $sessionYear;
@@ -75,6 +78,7 @@ class FeesController extends Controller
         $this->paymentTransaction = $paymentTransaction;
         $this->systemSetting = $systemSetting;
         $this->classSection = $classSection;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     /* START : Fees Module */
@@ -114,6 +118,16 @@ class FeesController extends Controller
             'fees_installments.*.due_charges'     => 'required|numeric'
         ]);
         try {
+            
+            if($request->include_fee_installments) {
+                $totalInstallments = collect($request->fees_installments)->sum('amount');
+                $totalCompulsoryFees = collect($request->compulsory_fees_type)->sum('amount');
+                
+                if ((float)$totalInstallments !== (float)$totalCompulsoryFees) {
+                    return ResponseService::errorResponse('Total amount of Fees Installments is not equal to the total amount of Compulsory Fees');
+                }
+            }
+            
             DB::beginTransaction();
             $sessionYear = $this->cache->getDefaultSessionYear();
             $classes = $this->class->builder()->whereIn("id", $request->class_id)->with('stream', 'medium')->get();
@@ -140,6 +154,14 @@ class FeesController extends Controller
                     'class_id'           => $class_id,
                     'session_year_id'    => $sessionYear->id,
                 ]);
+
+                $semester = $this->cache->getDefaultSemesterData();
+                if($semester){
+                    $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Fees', $fees->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, $semester->id);
+                }else{
+                    $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Fees', $fees->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+                }
+
                 $feeClassType = [];
                 foreach ($request->compulsory_fees_type as $data) {
                     $feeClassType[] = array(
@@ -178,10 +200,18 @@ class FeesController extends Controller
                             'due_charges'      => $data->due_charges,
                             'fees_id'          => $fees->id,
                             'session_year_id'  => $sessionYear->id,
+                            'installment_amount' => $data->amount
                         );
                     }
                     $this->feesInstallment->createBulk($installmentData);
                 }
+            }
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            if($semester){
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Fees', $fees->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, $semester->id);
+            }else{
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Fees', $fees->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             }
 
             DB::commit();
@@ -372,6 +402,8 @@ class FeesController extends Controller
         try {
             DB::beginTransaction();
             $this->fees->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Fees', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse("Data Deleted Successfully");
         } catch (Throwable $e) {
@@ -427,6 +459,8 @@ class FeesController extends Controller
         try {
             DB::beginTransaction();
             $this->feesInstallment->DeleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\FeesInstallment', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse("Data Deleted Successfully");
         } catch (Throwable $e) {
@@ -442,6 +476,8 @@ class FeesController extends Controller
         try {
             DB::beginTransaction();
             $this->feesClassType->DeleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\FeesClassType', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse("Data Deleted Successfully");
         } catch (Throwable $e) {
@@ -480,6 +516,9 @@ class FeesController extends Controller
                 $this->feesPaid->permanentlyDeleteById($feesPaidId);
             }
 
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OptionalFee', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
@@ -517,6 +556,9 @@ class FeesController extends Controller
             } else {
                 $this->feesPaid->permanentlyDeleteById($feesPaidId);
             }
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\CompulsoryFee', $compulsoryFeesPaidID, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
 
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
@@ -595,7 +637,7 @@ class FeesController extends Controller
         $order = request('order', 'DESC');
 
         //Fetching Students Data on Basis of Class Section ID with Relation fees paid
-        $sql = $this->paymentTransaction->builder()->doesntHave('subscription_bill')->doesntHave('addon_subscription')->with('user:id,first_name,last_name');
+        $sql = $this->paymentTransaction->builder()->with('user:id,first_name,last_name');
 
         if (!empty($request->search)) {
             $search = $request->search;
@@ -640,13 +682,13 @@ class FeesController extends Controller
         ResponseService::noPermissionThenRedirect('fees-paid');
 
         // Fees Data With Few Selected Data
-        $fees = $this->fees->builder()->select(['id', 'name'])->get();
+        $fees = $this->fees->builder()->select(['id', 'name','class_id'])->get();
         $classes = $this->classes->all(['*'], ['medium', 'sections']);
         //        $session_year_all = $this->sessionYear->builder()->where('default', 1)->get();
         $session_year_all = $this->sessionYear->all(['id', 'name', 'default']);
-
+        $class_section = $this->classSection->builder()->with('class', 'class.stream', 'section', 'medium')->get();
         $months = sessionYearWiseMonth();
-        return response(view('fees.fees_paid', compact('fees', 'classes', 'session_year_all', 'months')));
+        return response(view('fees.fees_paid', compact('fees', 'classes', 'session_year_all', 'months', 'class_section')));
     }
 
     public function feesPaidList(Request $request)
@@ -659,7 +701,8 @@ class FeesController extends Controller
         $order = request('order', 'DESC');
         $feesId = (int)request('fees_id');
         $requestSessionYearId = (int)request('session_year_id');
-
+        $class_section_id = request('class_section_id');
+        $class_id = request('class_id');
         $settings = $this->cache->getSchoolSettings();
 
         $sessionYearId = $requestSessionYearId ?? $this->cache->getDefaultSessionYear()->id;
@@ -694,6 +737,10 @@ class FeesController extends Controller
                 }], 'due_charges')
                 ->whereHas('student.class_section', function ($q) use ($fees) {
                     $q->where('class_id', $fees->class_id);
+                })->whereHas('student.class_section', function ($q) use ($class_section_id, $class_id) {
+                    if($class_id) {
+                        $q->where('class_id', $class_id);
+                    } 
                 });
             if (!empty($_GET['search'])) {
                 $search = $_GET['search'];
@@ -759,10 +806,21 @@ class FeesController extends Controller
     
                 if ($request->payment_gateway == 'stripe_razorpay') {
                     $sql->whereHas('fees_paid.compulsory_fee.payment_transaction', function ($q) use ($request) {
-                        $q->whereIn('payment_gateway', ['Stripe','Razorpay']);
+                        $q->whereIn('payment_gateway', ['Stripe','Razorpay','Flutterwave','Paystack']);
                     });
                 }
 
+                if($request->online_offline_payment) {
+                    $sql->whereHas('fees_paid.compulsory_fee', function ($q) use ($request) {
+                        if($request->online_offline_payment == 2) {
+                            // Offline
+                            $q->whereIn('mode', ['Cash','Cheque']);
+                        } else if ($request->online_offline_payment == 1) {
+                            // Online
+                            $q->whereIn('mode', ['Stripe','Razorpay','Flutterwave','Paystack']);
+                        }
+                    });
+                }
                 
             }
 
@@ -829,8 +887,9 @@ class FeesController extends Controller
                 } else {
                     $tempRow['paid_amount'] = 0;
                 }
-                
-                
+                if ($row->fees_paid && isset($row->fees_paid->compulsory_fee[0]->mode)) {
+                    $tempRow['payment_method'] = $row->fees_paid->compulsory_fee[0]->mode;
+                }
 
                 $tempRow['operate'] = $operate;
                 $rows[] = $tempRow;
@@ -1043,6 +1102,9 @@ class FeesController extends Controller
                             'date'           => date('Y-m-d', strtotime($request->date))
                         );
                         $this->compulsoryFee->create($compulsoryFeeData);
+
+                        $sessionYear = $this->cache->getDefaultSessionYear();
+                        $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\CompulsoryFee', $feesPaidResult->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
                     }
                 } else {
 
@@ -1059,6 +1121,9 @@ class FeesController extends Controller
                     'date'         => date('Y-m-d', strtotime($request->date))
                 );
                 $this->compulsoryFee->create($compulsoryFeeData);
+
+                $sessionYear = $this->cache->getDefaultSessionYear();
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\CompulsoryFee', $feesPaidResult->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             }
 
 
@@ -1078,6 +1143,7 @@ class FeesController extends Controller
                     'amount'            => $request->advance
                 ]);
             }
+
             DB::commit();
             ResponseService::successResponse("Data Updated SuccessFully");
         } catch (Throwable $e) {
@@ -1182,6 +1248,9 @@ class FeesController extends Controller
 
             $this->optionalFee->createBulk($optionalFeesPaymentData);
 
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OptionalFee', $optionalFeesPaymentData['fees_paid_id'], Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             DB::commit();
             ResponseService::successResponse("Data Updated SuccessFully");
         } catch (Throwable $e) {
@@ -1235,19 +1304,35 @@ class FeesController extends Controller
             }
             $student_ids = array_unique($student_ids);
 
-            $students = $this->student->builder()->whereIn('user_id', $student_ids)->where('class_section_id', $class_section_id)
+            $students = $this->student->builder()->with('guardian')->whereIn('user_id', $student_ids)->where('class_section_id', $class_section_id)
                 ->whereHas('user', function ($query) {
                     $query->where('status', 1);
                 })->with(['user', 'user.fees_paids', 'class_section' => function ($query) {
                     $query->select('id', 'class_id', 'section_id', 'medium_id')->with('class:id,name', 'section:id,name', 'medium:id,name');
                 }])->get();
 
+            // $guardian_ids = $students->pluck('guardian_id')->toArray();
+    
+            // // send notification to guardians
+            // $title = "Overdue Fees";
+            // $body = "Dear Guardian, the fees for your ward are overdue. Please make the necessary payment at the earliest.";
+            // $type = 'Notification';
+            
+            // // Send the notification to the guardians
+            // send_notification($guardian_ids, $title, $body, $type);
 
             ResponseService::successResponse("Data Fetched SuccessFully", $students);
         } catch (Throwable $e) {
-            DB::rollback();
-            ResponseService::logErrorResponse($e, 'FeesController -> feesOverDue method ');
-            ResponseService::errorResponse();
+            if (Str::contains($e->getMessage(), [
+                'does not exist','file_get_contents'
+            ])) {
+                DB::commit();
+                ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
+            } else {
+                DB::rollback();
+                ResponseService::logErrorResponse($e, 'FeesController -> feesOverDue method ');
+                ResponseService::errorResponse();
+            }
         }
     }
 

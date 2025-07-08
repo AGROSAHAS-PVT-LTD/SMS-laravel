@@ -59,10 +59,9 @@ class AddonController extends Controller {
         $features = $this->featureSerive->getFeatures();
         $features = array_keys($features);
         $subscription = $this->subscriptionService->active_subscription(Auth::user()->school_id);
-
+        
         DB::setDefaultConnection('mysql');
-        $paymentConfiguration = PaymentConfiguration::where('school_id', null)->where('payment_method','Razorpay')->where('status',1)->first();
-
+        $paymentConfiguration = PaymentConfiguration::where('school_id', null)->where('status',1)->first();
         DB::setDefaultConnection('school');
         return view('addons.plan', compact('addons', 'settings','subscription','features', 'paymentConfiguration','system_settings'));
     }
@@ -161,6 +160,8 @@ class AddonController extends Controller {
             'feature_id' => 'required|unique:addons,feature_id,' . $id,
         ], [
             'feature_id.unique' => trans('you_have_previously_created_an_addon_for_this_feature'),
+            'name.required' => 'The name is required',
+            'price.required' => 'The price is required',
         ]);
         try {
             DB::beginTransaction();
@@ -378,42 +379,45 @@ class AddonController extends Controller {
 
         DB::setDefaultConnection('mysql');
         $paymentConfiguration = PaymentConfiguration::where('school_id', null)->first();
-        $stripe_secret_key = $paymentConfiguration->secret_key ?? null;
         $currency = $paymentConfiguration->currency_code;
+        $addonSubscription = $this->addonSubscription->findById($id);
+        
+        if ($paymentConfiguration->payment_method == 'Stripe') {
+            $stripe_secret_key = $paymentConfiguration->secret_key ?? null;
+            Stripe::setApiKey($stripe_secret_key);
 
-        // $this->subscriptionBill->findById($id);
+            $session = StripeSession::retrieve($check_out_session_id);
+            $status = "pending";
+            if ($session->payment_status == 'paid') {
+                $status = "succeed";
+            }
 
-        Stripe::setApiKey($stripe_secret_key);
+            $payment_data = [
+                'user_id'         => Auth::user()->id,
+                'amount'          => ($session->amount_total / 100),
+                'payment_gateway' => 'Stripe',
+                'order_id'        => $session->payment_intent,
+                'payment_id'      => $session->id,
+                'payment_status'  => $status,
+            ];
 
-        $session = StripeSession::retrieve($check_out_session_id);
-        $status = "pending";
-        if ($session->payment_status == 'paid') {
-            $status = "succeed";
+            $paymentTransaction = $this->paymentTransaction->create($payment_data);
+            $addonSubscription = $this->addonSubscription->update($id, ['payment_transaction_id' => $paymentTransaction->id]);
+            $stripe = new StripeClient($stripe_secret_key);
+            $stripeData = $stripe->customers->create(
+                [
+                    'metadata' => [
+                        'user_id' => Auth::user()->id,
+                        'amount'         => $paymentTransaction->amount,
+                        'transaction_id' => $paymentTransaction->id,
+                        'order_id'       => $paymentTransaction->order_id,
+                        'payment_id'     => $paymentTransaction->payment_id,
+                        'payment_status' => $paymentTransaction->payment_status,
+                    ]
+                ]
+            );
         }
 
-        $payment_data = [
-            'user_id'         => Auth::user()->id,
-            'amount'          => ($session->amount_total / 100),
-            'payment_gateway' => 'Stripe',
-            'order_id'        => $session->payment_intent,
-            'payment_id'      => $session->id,
-            'payment_status'  => $status,
-        ];
-
-        $paymentTransaction = $this->paymentTransaction->create($payment_data);
-        $addonSubscription = $this->addonSubscription->update($id, ['payment_transaction_id' => $paymentTransaction->id]);
-        $stripe = new StripeClient($stripe_secret_key);
-        $stripeData = $stripe->customers->create(
-            [
-                'metadata' => [
-                    'amount'         => $paymentTransaction->amount,
-                    'transaction_id' => $paymentTransaction->id,
-                    'order_id'       => $paymentTransaction->order_id,
-                    'payment_id'     => $paymentTransaction->payment_id,
-                    'payment_status' => $paymentTransaction->payment_status,
-                ]
-            ]
-        );
 
         $this->cache->removeSchoolCache(config('constants.CACHE.SCHOOL.FEATURES'), $addonSubscription->school_id);
 
@@ -421,6 +425,23 @@ class AddonController extends Controller {
     }
 
     public function payment_cancel()
+    {
+        return redirect()->route('addons.plan')->with('error', trans('the_payment_has_been_cancelled'));
+    }
+
+    public function payment_success_callback()
+    {
+       
+        $request = request();
+
+        if($request->trxref && $request->reference || ($request->status == 'successful' && $request->transaction_id)) {
+            return redirect()->route('addons.plan')->with('success', trans('the_payment_has_been_completed_successfully'));
+        } else {
+            return redirect()->route('addons.plan')->with('error', trans('the_payment_has_been_cancelled'));
+        }
+    }
+
+    public function payment_cancel_callback()
     {
         return redirect()->route('addons.plan')->with('error', trans('the_payment_has_been_cancelled'));
     }

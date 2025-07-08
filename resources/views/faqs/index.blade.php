@@ -65,7 +65,7 @@
                                             <th scope="col" data-field="id" data-sortable="true" data-visible="false"> {{ __('id') }} </th>
                                             <th scope="col" data-field="no"> {{ __('no.') }} </th>
                                             <th scope="col" data-field="title">{{ __('title') }} </th>
-                                            <th scope="col" data-field="description">{{ __('description') }}</th>
+                                            <th scope="col" data-field="description" data-formatter='descriptionFormatter' data-events="tableDescriptionEvents" >{{ __('description') }}</th>
                                             @if (Auth::user()->can('faqs-edit') || Auth::user()->can('faqs-delete'))
                                                 <th data-events="faqsEvents" data-width="150" scope="col" data-field="operate" data-escape="false">{{ __('action') }}</th>
                                             @endif

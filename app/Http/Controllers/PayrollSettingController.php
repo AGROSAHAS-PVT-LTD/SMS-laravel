@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Repositories\PayrollSetting\PayrollSettingInterface;
 use App\Services\BootstrapTableService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
+use App\Services\CachingService;
 use Auth;
 use DB;
 use Illuminate\Http\Request;
@@ -15,10 +17,13 @@ class PayrollSettingController extends Controller
     //
 
     private PayrollSettingInterface $payrollSetting;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
+    private CachingService $cache;
 
-
-    public function __construct(PayrollSettingInterface $payrollSetting) {
+    public function __construct(PayrollSettingInterface $payrollSetting, SessionYearsTrackingsService $sessionYearsTrackingsService, CachingService $cache) {
         $this->payrollSetting = $payrollSetting;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
+        $this->cache = $cache;
     }
 
     /**
@@ -64,7 +69,10 @@ class PayrollSettingController extends Controller
                 'type' => $request->type
             ];
 
-            $this->payrollSetting->create($data);
+            $payrollSetting = $this->payrollSetting->create($data);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\PayrollSetting', $payrollSetting->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
@@ -88,7 +96,7 @@ class PayrollSettingController extends Controller
         $search = $_GET['search'];
         $showDeleted = $request->show_deleted;
 
-        $sql = $this->payrollSetting->builder()->where('type',$request->type)
+        $sql = $this->payrollSetting->builder()->with('session_years_trackings')->where('type',$request->type)
             ->where(function ($query) use ($search) {
                 $query->when($search, function ($q) use ($search) {
                     $q->where('id', 'LIKE', "%$search%")->orwhere('name', 'LIKE', "%$search%")->Owner();
@@ -96,6 +104,12 @@ class PayrollSettingController extends Controller
             })->when(!empty($showDeleted), function ($q) {
                 $q->onlyTrashed()->Owner();
             });
+
+        $sessionYear = $this->cache->getDefaultSessionYear();
+        $sql->whereHas('session_years_trackings', function ($q) use ($sessionYear) {
+            $q->where('session_year_id', $sessionYear->id);
+        });
+
         $total = $sql->count();
 
         $sql->orderBy($sort, $order)->skip($offset)->take($limit);
@@ -177,6 +191,8 @@ class PayrollSettingController extends Controller
         ResponseService::noPermissionThenSendJson('payroll-settings-delete');
         try {
             $this->payrollSetting->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\PayrollSetting', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e);

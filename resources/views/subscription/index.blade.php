@@ -117,7 +117,7 @@
                                                     <div class="row">
                                                         <div class="col-sm-12 col-md-12 mb-3">
                                                             {{-- Start Immediate plan --}}
-                                                            @if ($paymentConfiguration && $package->type == 0)
+                                                            @if ($paymentConfiguration && $paymentConfiguration->payment_method == 'Razorpay' && $package->type == 0)
                                                                 <form action="{{ url('subscriptions/razorpay') }}" class="razorpay-form-{{ $package->id }}" method="POST"> @csrf
                                                                     <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
                                                                     <input type="hidden" name="amount" class="bill_amount_{{ $package->id }}" value="{{ $package->charges }}">
@@ -133,6 +133,44 @@
         
                                                                     <button class="btn btn-theme w-100" id="razorpay-button-{{ $package->id }}">{{ __('update_current_plan') }}</button>
                                                                 </form>
+
+                                                            @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Stripe' && $package->type == 0)
+                                                                <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-stripe-publishable-key="{{ $settings['stripe_publishable_key'] ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                                                    @csrf
+                                                                    <input type="hidden" name="payment_method" value="stripe">
+                                                                    <input type="hidden" name="id" id="edit_id">
+                                                                    <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
+                                                                    <input type="hidden" name="amount" class="bill_amount" value="{{ $package->charges }}">
+                                                                    <input type="hidden" name="type" class="type" value="package">
+                                                                    <input type="hidden" name="package_type" class="package_type" value="immediate">
+
+                                                                    <button class="btn btn-theme w-100" type="submit" id="stripe-button-{{ $package->id }}">{{ __('update_current_plan') }}</button>
+                                                                </form>
+                                                            @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Paystack' && $package->type == 0)
+                                                                <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-paystack-publishable-key="{{ $paymentConfiguration->api_key ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                                                    @csrf
+                                                                    <input type="hidden" name="payment_method" value="paystack">
+                                                                    <input type="hidden" name="id" id="edit_id">
+                                                                    <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
+                                                                    <input type="hidden" name="amount" class="bill_amount" value="{{ $package->charges }}">
+                                                                    <input type="hidden" name="type" class="type" value="package">
+                                                                    <input type="hidden" name="package_type" class="package_type" value="immediate">
+                                                                    
+                                                                    {{-- <button type="button" class="btn btn-theme w-100 paystack-button">{{ __('get_start') }}</button> --}}
+                                                                    <button class="btn btn-theme w-100" id="paystack-button-{{ $package->id }}">{{ __('update_current_plan') }}</button>
+                                                                </form>
+                                                            @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Flutterwave' && $package->type == 0)
+                                                                <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-flutterwave-publishable-key="{{ $paymentConfiguration->api_key ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                                                    @csrf
+                                                                    <input type="hidden" name="payment_method" value="flutterwave">
+                                                                    <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
+                                                                    <input type="hidden" name="amount" class="bill_amount" value="{{ $package->charges }}">
+                                                                    <input type="hidden" name="type" class="type" value="package">
+                                                                    <input type="hidden" name="package_type" class="package_type" value="immediate">
+                                                                    <input type="hidden" name="id" id="edit_id">
+                                                                    {{-- <input class="btn btn-theme payment-status" type="submit" value={{ __('Flutterwave') }} /> --}}
+                                                                    <button class="btn btn-theme w-100" id="flutterwave-button-{{ $package->id }}">{{ __('update_current_plan') }}</button>
+                                                                </form>
                                                             @else
                                                                 <a href="#" class="btn start-immediate-plan @if ($package->highlight) btn-success @else btn-primary @endif btn-block" data-type="{{ $package->type }}" data-id="{{ $package->id }}">{{ __('update_current_plan') }}</a>
                                                             @endif                                                   
@@ -145,7 +183,7 @@
                                                     </div>
                                                 @endif
                                             @else
-                                                @if ($paymentConfiguration && $package->type == 0)
+                                                @if ($paymentConfiguration && $paymentConfiguration->payment_method == 'Razorpay' && $paymentConfiguration->status == 0 && $package->type == 0)
                                                     {{-- New subscription --}}
                                                     <div class="wrapper">
                                                         <form action="{{ url('subscriptions/razorpay') }}" class="razorpay-form-{{ $package->id }}" method="POST">
@@ -165,6 +203,38 @@
                                                             <button class="btn btn-theme w-100" id="razorpay-button-{{ $package->id }}">{{ __('get_start') }}</button>
                                                         </form>
                                                     </div>
+                                                @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Stripe' && $paymentConfiguration->status == 0 && $package->type == 0)
+                                                    <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-stripe-publishable-key="{{ $settings['stripe_publishable_key'] ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                                        @csrf
+                                                        <input type="hidden" name="payment_method" value="stripe">
+                                                        <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
+                                                        <input type="hidden" name="type" value="package">
+                                                        <input type="hidden" name="package_type" value="new">
+
+                                                        <button class="btn btn-theme w-100" id="stripe-button-{{ $package->id }}">{{ __('get_start') }}</button>
+                                                    </form>
+                                                @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Paystack' && $paymentConfiguration->status == 0)
+                                                    <form action="{{ route('subscriptions.store') }}" class="paystack-form-{{ $package->id }}" data-paystack-publishable-key="{{ $paymentConfiguration->api_key ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                                        @csrf
+                                                        <input type="hidden" name="payment_method" value="paystack">
+                                                        <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
+                                                        <input type="hidden" name="type" value="package">
+                                                        <input type="hidden" name="package_type" value="new">
+                                                        
+                                                        <button class="btn btn-theme w-100" type="submit">{{ __('get_start') }}</button>
+                                                    </form>
+                                                @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Flutterwave' && $paymentConfiguration->status == 0 && $package->type == 0)
+                                                    <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-flutterwave-publishable-key="{{ $paymentConfiguration->api_key ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                                        @csrf
+                                                        <input type="hidden" name="payment_method" value="flutterwave">
+                                                        <input type="hidden" name="id" id="edit_id">
+                                                        <input type="hidden" name="package_id" class="package_id_{{ $package->id }}" value="{{ $package->id }}">
+                                                        <input type="hidden" name="amount" class="bill_amount_{{ $package->id }}" value="{{ $package->charges }}">
+                                                        <input type="hidden" name="type" class="type_{{ $package->id }}" value="package">
+                                                        <input type="hidden" name="package_type" class="package_type_{{ $package->id }}" value="new">
+
+                                                        <button class="btn btn-theme w-100" type="submit" id="flutterwave-button-{{ $package->id }}">{{ __('get_start') }}</button>
+                                                    </form>
                                                 @else
                                                     <div class="wrapper">
                                                         <a href="#" class="btn @if ($package->highlight) btn-success @else btn-outline-primary @endif btn-block select-plan" data-type="{{ $package->type }}" data-iscurrentplan="1" data-id="{{ $package->id }}">{{ __('get_start') }}</a>
@@ -207,7 +277,7 @@
 
                 $.ajax({
                     type: "post",
-                    url: baseUrl + '/subscriptions/create/order-id',
+                    url: baseUrl + '/subscriptions/create/razorpay/order-id',
                     data: {
                         amount : $('.bill_amount_{{ $package->id }}').val(),
                         currency : "{{ $system_settings['currency_code'] ?? 'INR' }}",

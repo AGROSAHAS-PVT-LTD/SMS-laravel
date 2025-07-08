@@ -26,6 +26,11 @@ use Response;
 use Storage;
 use Throwable;
 use ZipArchive;
+use App\Services\SchoolDataService;
+use App\Models\School;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 
 class SchoolSettingsController extends Controller {
     // Initializing the Settings Repository
@@ -55,8 +60,24 @@ class SchoolSettingsController extends Controller {
         // Remove the scheme (http:// or https://)
         $baseUrlWithoutScheme = preg_replace("(^https?://)", "", $baseUrl);
         $baseUrlWithoutScheme = str_replace("www.", "", $baseUrlWithoutScheme);
+		$baseUrlParts = parse_url($baseUrl);
+		$host = $baseUrlParts['host'];
+		$host = str_replace("www.", "", $host);
+		$hostParts = explode('.', $host);
+		
+		 if (count($hostParts) > 2) {
+              if (strpos($baseUrlWithoutScheme, '.') !== false) {
+					$baseUrlWithoutScheme = substr($baseUrlWithoutScheme, strpos($baseUrlWithoutScheme, '.') + 1);
+				}
+         }
+		
         $systemSettings = $this->cache->getSystemSettings();
-        return view('school-settings.general-settings', compact('settings','getDateFormat','getTimeFormat','baseUrlWithoutScheme','systemSettings'));
+        $schoolService = app(SchoolDataService::class);
+        DB::setDefaultConnection('mysql');
+        $domain_type = School::where('id',Auth::user()->school_id)->pluck('domain_type')->first();
+        $schoolService->switchToSchoolDatabase(Auth::user()->school_id);
+        
+        return view('school-settings.general-settings', compact('settings','getDateFormat','getTimeFormat','baseUrlWithoutScheme','systemSettings','domain_type'));
     }
 
 
@@ -78,6 +99,7 @@ class SchoolSettingsController extends Controller {
             'time_format'             => 'required',
             'domain'                  => 'nullable|unique:schools,domain,'.Auth::user()->school_id,
             'google_map_link'         => 'nullable',
+            'fees_remainder_duration' => 'required'
 
         ];
         $validator = Validator::make($request->all(), $settings);
@@ -85,6 +107,9 @@ class SchoolSettingsController extends Controller {
             ResponseService::validationError($validator->errors()->first());
         }
         try {
+
+            $school_database = School::where('id',Auth::user()->school_id)->pluck('database_name')->first();
+
             $data = array();
             foreach ($settings as $key => $rule) {
                 if ($key == 'horizontal_logo' || $key == 'vertical_logo' || $key == 'favicon') {
@@ -105,6 +130,12 @@ class SchoolSettingsController extends Controller {
                 }
             }
             $this->schoolSettings->upsert($data, ["name"], ["data"]);
+
+            DB::setDefaultConnection('mysql');
+            Session::forget('school_database_name');
+            Session::flush();
+            Session::put('school_database_name', null);
+
             // Update school master table
             $school_data = [
                 'name' => $request->school_name,
@@ -112,7 +143,9 @@ class SchoolSettingsController extends Controller {
                 'support_phone' => $request->school_phone,
                 'support_email' => $request->school_email,
                 'tagline' => $request->school_tagline,
-                'domain' => $request->domain
+                'domain' => $request->domain,
+                'domain_type' => $request->domain_type,
+                'fees_remainder_duration' => $request->fees_remainder_duration
             ];
             if ($request->hasFile('vertical_logo') && Auth::user()->school_id) {
                 $school = $this->school->findById(Auth::user()->school_id);
@@ -125,6 +158,12 @@ class SchoolSettingsController extends Controller {
                 $this->school->update(Auth::user()->school_id,$school_data);
             }
             $this->cache->removeSchoolCache(config('constants.CACHE.SCHOOL.SETTINGS'));
+
+            DB::setDefaultConnection('school');
+            Config::set('database.connections.school.database', $school_database);
+            DB::purge('school');
+            DB::connection('school')->reconnect();
+            DB::setDefaultConnection('school');
 
             if ($request->change_roll_number) {
                 // Get Sort And Order

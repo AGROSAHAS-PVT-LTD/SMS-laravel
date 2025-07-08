@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 
+
 class ResetPasswordController extends Controller
 {
     /*
@@ -30,6 +31,11 @@ class ResetPasswordController extends Controller
 
     protected function reset(Request $request)
     {
+        if($request->password != $request->password_confirmation)
+        {
+            return redirect()->back()->withErrors(['email' => 'The password confirmation does not match.']);
+        }
+        
         // Fetch the school code from the request
         if ($request->school_code) {
             $school = School::where('code',$request->school_code)->first();
@@ -53,9 +59,15 @@ class ResetPasswordController extends Controller
                     ? $this->sendResetResponse($request, $response)
                     : $this->sendResetFailedResponse($request, $response);
 
-        
-        Auth::logout();
-        return redirect()->route('login')->with('emailSuccess','Your password has been successfully updated. Please log in with your new credentials.');
+       
+        if ($response == Password::PASSWORD_RESET) {
+            Auth::logout();
+            return redirect()->route('login')->with('emailSuccess', 'Your password has been successfully updated. Please log in with your new credentials.');
+        } else {
+            return redirect()->back()->withErrors(['email' => trans($response)]);
+        }
+
+       
     }
 
     /**

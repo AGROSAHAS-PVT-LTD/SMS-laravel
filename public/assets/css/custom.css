@@ -268,3 +268,8 @@ label.filter-menu {
     /* border: 0px !important; */
     /* top: 40px; */
 }
+
+.dropdown .dropdown-menu .dropdown-item:hover {
+    background-color: #007bff !important;
+    color: #fff !important;
+}

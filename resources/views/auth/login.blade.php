@@ -40,7 +40,7 @@
         color: #007bff !important;
     }
     </style>
-
+    <script async src="https://www.google.com/recaptcha/api.js"></script>
 </head>
 
 <body>
@@ -48,13 +48,13 @@
         <div class="container-fluid page-body-wrapper full-page-wrapper">
             <div class="content-wrapper login-d-flex align-items-center auth">
                 <div class="row flex-grow">
-                    <div class="col-xl-6 mx-auto">
+                    <div class="col-xl-6 mx-auto auth-form-light p-4 m-4">
                         @if (env('DEMO_MODE'))
                         <div class="alert alert-info text-center" role="alert">
                             NOTE : <a target="_blank" href="https://eschool-saas.wrteam.me/login">-- Click Here --</a> if you cannot login.
                         </div>
                         @endif
-                        <div class="auth-form-light rounded-lg text-left p-5">
+                        <div class="rounded-lg text-left p-5">
                             <div class="brand-logo text-center">
                                 @if ($schoolSettings['horizontal_logo'] ?? '')
                                     <img class="img-fluid w-25" src="{{ $schoolSettings['horizontal_logo'] ?? '' }}" alt="logo">    
@@ -97,14 +97,14 @@
                                 <div class="form-group">
                                     <label for="email">{{ __('email') }}</label>
                                     <input id="email" type="text" class="form-control rounded-lg form-control-lg"
-                                        name="email" value="{{ old('email') }}" required autocomplete="email"
+                                        name="email" value="{{ isset($school) && $school->type == 'demo' ? $school->user->email :old('email') }}" required autocomplete="email"
                                         autofocus placeholder="{{ __('email_or_mobile') }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="password">{{ __('password') }}</label>
                                     <div class="input-group">
                                         <input id="password" type="password"
-                                            class="form-control rounded-lg form-control-lg" name="password" required
+                                            class="form-control rounded-lg form-control-lg" name="password" required value="{{ isset($school) && $school->type == 'demo' ? $school->user->mobile : '' }}"
                                             autocomplete="current-password" placeholder="{{ __('password') }}">
                                         <div class="input-group-append" cursor="pointer" id="togglePasswordShowHide">
                                             <span class="input-group-text">
@@ -152,7 +152,7 @@
                             @if (env('DEMO_MODE'))
 
                             <div class="row mt-3">
-                                <hr class="w-100">
+                                <hr style="width: -webkit-fill-available;">
                                 <div class="col-12 text-center mb-4 text-black-50">Demo Credentials</div>
                             </div>
                             @if (empty($school) ?? '')
@@ -297,6 +297,9 @@
                 $('#frmLogin').submit();
             })
         @endif
+
+        const please_wait = "{{__('Please wait')}}"
+        const processing_your_request = "{{__('Processing your request')}}"
     </script>
 </body>
 

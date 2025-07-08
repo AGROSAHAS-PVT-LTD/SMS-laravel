@@ -28,7 +28,7 @@
                                 <label for="filter_exam_id" class="filter-menu">{{__("exam")}}</label>
                                 <select name="exam" class="form-control result_exam" id="filter_exam_id" class="form-control">
                                     <option value="">{{ __('select') . ' ' . __('exam') }}</option>
-                                    <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
+                                    <option value="data-not-found" style="display: none;">-- {{ __('no_data_found') }} --</option>
                                     @foreach ($exams as $exam)
                                         <option data-session-year="{{ $exam->session_year_id }}" data-class-id="{{ $exam->class_id }}" value="{{ $exam->id }}">{{ $exam->prefix_name }}</option>
                                     @endforeach
@@ -38,6 +38,7 @@
                                 <label for="filter_class_section_id" class="filter-menu">{{__("Class Section")}}</label>
                                 <select name="filter_class_section_id" id="filter_class_section_id" class="form-control">
                                     <option value="">{{ __('select_class_section') }}</option>
+                                    <option value="data-not-found" style="display: none;">-- {{ __('no_data_found') }} --</option>
                                     @foreach ($classSections as $classSection)
                                         <option value="{{ $classSection->id }}" data-class-id="{{ $classSection->class_id }}">{{ $classSection->full_name }}</option>
                                     @endforeach

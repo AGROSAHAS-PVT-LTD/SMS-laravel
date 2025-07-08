@@ -30,7 +30,7 @@
 
                                 <div class="form-group col-sm-12 col-md-3">
                                     <label for="">{{ __('price') }} <span class="text-danger">*</span></label>
-                                    <input type="number" name="price" class="form-control" required placeholder="{{ __('price') }}" min="0">
+                                    <input type="number" name="price" class="form-control" required placeholder="{{ __('price') }}" min="1">
                                 </div>
                                 <div class="col-sm-12 col-md-12 mt-3">
                                     <label for="">{{ __('features') }}</label>

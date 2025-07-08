@@ -3,21 +3,30 @@
     Home
 @endsection
 @section('content')
+
     {{-- Hero section --}}
     <section class="heroSection">
         <div class="owl-carousel owl-theme hero-carousel">
             @if (is_object($sliders))
-                @foreach ($sliders as $slider)
+            @foreach ($sliders as $slider)
+                @if ($slider->link)
+                    <div class="item">
+                        <a href="{{ $slider->link }}" target="_blank">
+                            <img src="{{ $slider->image }}" alt="" class="swiperImage" />
+                        </a>
+                    </div>
+                @else
                     <div class="item">
                         <img src="{{ $slider->image }}" alt="" class="swiperImage" />
                     </div>
-                @endforeach    
+                @endif
+            @endforeach    
             @else
                 @foreach ($sliders as $slider)
                     <div class="item">
                         <img src="{{ $slider }}" alt="" class="swiperImage" />
                     </div>
-                @endforeach  
+                @endforeach
             @endif
         </div>
     </section>
@@ -27,16 +36,19 @@
     @include('school-website.about_us_section')
 
     {{-- Education program --}}
-    @if (isset($schoolSettings['education_program_status']) && $schoolSettings['education_program_status'] == 1 && count($class_groups))
+    @if (isset($schoolSettings['education_program_status']) &&
+            $schoolSettings['education_program_status'] == 1 &&
+            count($class_groups))
         <section class="programs commonMT">
             <div class="container">
                 <div class="row">
                     <div class="col-12">
                         <div class="flex_column_center">
-                            <span class="commonTag"> {{ $schoolSettings['education_program_title'] ?? 'Educational Programs' }}  </span>
+                            <span class="commonTag">
+                                {{ $schoolSettings['education_program_title'] ?? 'Educational Programs' }} </span>
                             <span class="commonTitle">
                                 {{ $schoolSettings['education_program_heading'] ?? 'Educational Programs for every Stage' }}
-                                
+
                             </span>
 
                             <span class="commonDesc">
@@ -54,7 +66,8 @@
                                     <div class="swiperDataWrapper">
                                         <div class="card">
                                             <div class="imgDiv">
-                                                <img src="{{ $group->image ?? asset('assets/school/images/programImg1.png') }}" class="card-img-top" alt="..." />
+                                                <img src="{{ $group->image ?? asset('assets/school/images/programImg1.png') }}"
+                                                    class="card-img-top" alt="..." />
                                             </div>
                                             <div class="cardDetails">
                                                 <span class="cardTitle">{{ $group->name }}</span>
@@ -101,7 +114,7 @@
                             join our vibrant learning community.' }}
                         
                             </span>
-                            <button class="commonBtn"><a href="{{ route('online-admission.index') }}">Apply Now</a></button>
+                            <button class="commonBtn"><a href="{{ route('online-admission.index') }}">{{ __('apply_now') }}</a></button>
                         </div>
                     </div>
                     <div class="col-lg-6 imgDiv">
@@ -128,9 +141,9 @@
                         <div class="upperDiv">
 
                             <div class="flex_column_center">
-                                <span class="commonTag"> {{ $schoolSettings['announcement_section'] ?? 'Announcements' }} </span>
+                                <span class="commonTag"> {{ $schoolSettings['announcement_title'] ?? 'Announcements' }} </span>
                                 <span class="commonTitle">
-                                    {{ $schoolSettings['announcement_title'] ?? 'Important Updates' }}
+                                    {{ $schoolSettings['announcement_heading'] ?? 'Important Updates' }}
                                 </span>
 
                                 <span class="commonDesc">
@@ -152,6 +165,8 @@
                             <div class="row">
                                 <div class="col-12">
 
+                                    <input type="hidden" name="" value="{{ count($announcements) }}"
+                                        class="announcementCount">
                                     <div class="commonSlider annaouncementSlider">
 
                                         <div class="slider-content owl-carousel announcementSwiper">
@@ -168,14 +183,19 @@
                                                                     <span class="d-none eventDate">{{ date('d F, Y',strtotime($item->created_at)) }}</span>
                                                                 </div>
                                                                 <div class="eventDescWrapper">
-                                                                    <span class="eventTitle">{{ $item->title }}</span>
-                                                                    <span class="eventDesc">
-                                                                        {{ $item->description }}
-                                                                    </span>
-                                                                    <div class="classWrapper">
-                                                                        <span class="eventDesc eventClasses">{{ implode(', ', $item->announcement_class->pluck('class_section.full_name')->toArray()) }}</span>
-                                                                    </div>
-                                                                </div>
+                                                                  <span class="eventTitle announcement-title">{{ $item->title }}</span>
+                                                                  <div class="cardImageWrapper mb-2">
+                                                                     @foreach ($item->file as $file)
+                                                                          <img src="{{ $file->file_url  }}" alt="{{ $item->title }}" class="cardImage" style="display: none;">
+                                                                     @endforeach
+                                                                  </div>
+                                                                 <span class="eventDesc announcement-desc">
+                                                                      {{ $item->description }}
+                                                                  </span>
+                                                                  <div class="classWrapper announcement-desc">
+                                                                      <span class="eventDesc eventClasses">{{ implode(', ', $item->announcement_class->pluck('class_section.full_name')->toArray()) }}</span>
+                                                                  </div>
+                                                              </div>
                                                             </div>
                                                         </div>
                                                     @endforeach
@@ -201,7 +221,9 @@
                                                 <span class="standard" id="classes"></span>
                                             </div>
                                             <div class="examImgDescWrapper">
-                                                {{-- <img src="./Images/modalImg.png" alt=""> --}}
+                                                <span class="common" id="image"></span>
+                                            </div>
+                                            <div class="examImgDescWrapper">
                                                 <span class="commonDesc" id="description"></span>
                                             </div>
                                         </div>
@@ -246,9 +268,9 @@
                 <div class="row">
                     <div class="col-12">
                         <div class="flex_column_center">
-                            <span class="commonTag"> {{ $schoolSettings['counter_section'] ?? 'CTCA - Contes' }} </span>
+                            <span class="commonTag"> {{ $schoolSettings['counter_title'] ?? 'CTCA - Contes' }} </span>
                             <span class="commonTitle">
-                                {{ $schoolSettings['counter_title'] ?? 'Educational Programs for every Stage' }}
+                                {{ $schoolSettings['counter_heading'] ?? 'Educational Programs for every Stage' }}
                             </span>
 
                             <span class="commonDesc">
@@ -340,10 +362,10 @@
                 <div class="row">
                     <div class="col-12">
                         <div class="flex_column_center">
-                            <span class="commonTag"> {{ $schoolSettings['faqs_section'] ?? 'Frequently Asked Questions' }}
+                            <span class="commonTag"> {{ $schoolSettings['faqs_title'] ?? 'Frequently Asked Questions' }}
                             </span>
                             <span class="commonTitle">
-                                {{ $schoolSettings['faqs_title'] ?? 'Know More About eSchool' }}
+                                {{ $schoolSettings['faqs_heading'] ?? 'Know More About eSchool' }}
 
                             </span>
 
@@ -359,9 +381,9 @@
                             @foreach ($faqs as $faq)
                                 <div class="accordion-item">
                                     <h2 class="accordion-header" id="{{ $faq->id }}">
-                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseOne-{{ $faq->id }}" aria-expanded="true"
-                                            aria-controls="collapseOne-{{ $faq->id }}">
+                                        <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse" data-bs-target="#collapseOne-{{ $faq->id }}"
+                                            aria-expanded="true" aria-controls="collapseOne-{{ $faq->id }}">
                                             <span> {{ $loop->index + 1 }}. {{ $faq->title }} </span>
                                         </button>
                                     </h2>
@@ -397,14 +419,21 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // Function to open the modal
-            function openModal(title, date, classes, description) {
+                function openModal(title, date, classes, description, images) {
                 setTimeout(() => {
                     $('#title').html(title);
-                    $('#classes').html(classes);
+                    $('#classes').html(classes); 
                     $('#description').html(description);
                     $('#date').html(date);
+                    
+                    let imagesHtml = '';
+                    images.forEach(image => {
+                        if(image) {
+                            imagesHtml += `<img src="${image}" alt="announcementImg" class="img-fluid mb-2 cardImage" style="display: block; margin: 0 auto;">`;
+                        }
+                    });
+                    $('#image').html(imagesHtml);
                 }, 200);
-                
             }
 
             // Add click event to each card
@@ -414,8 +443,9 @@
                     const date = card.querySelector('.eventDate').textContent;
                     const classes = card.querySelector('.eventClasses').textContent;
                     const description = card.querySelector('.eventDesc').textContent;
-                    openModal(title, date, classes, description);
-                    
+                    const images = Array.from(card.querySelectorAll('.cardImageWrapper img')).map(img => img.src);
+                        console.log(images);
+                    openModal(title, date, classes, description, images);
                 });
             });
 

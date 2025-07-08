@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Repositories\School\SchoolInterface;
 use App\Repositories\Staff\StaffInterface;
+use App\Repositories\SessionYear\SessionYearInterface;
 use App\Repositories\StaffSupportSchool\StaffSupportSchoolInterface;
 use App\Repositories\Subscription\SubscriptionInterface;
 use App\Repositories\User\UserInterface;
 use App\Services\BootstrapTableService;
+use App\Services\SessionYearsTrackingsService;
 use App\Services\CachingService;
 use App\Services\FeaturesService;
 use App\Services\ResponseService;
@@ -25,11 +27,16 @@ use Throwable;
 use App\Exports\StaffDataExport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\StaffImport;
+use App\Repositories\ExtraFormField\ExtraFormFieldsInterface;
+use App\Repositories\FormField\FormFieldsInterface;
 use Illuminate\Validation\ValidationException;
 use App\Repositories\PayrollSetting\PayrollSettingInterface;
 use App\Repositories\StaffSalary\StaffSalaryInterface;
 use App\Services\UserService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+
 
 class StaffController extends Controller {
 
@@ -43,8 +50,12 @@ class StaffController extends Controller {
     private SubscriptionService $subscriptionService;
     private PayrollSettingInterface $payrollSetting;
     private StaffSalaryInterface $staffSalary;
+    private FormFieldsInterface $formFields;
+    private ExtraFormFieldsInterface $extraFormFields;
+    private SessionYearInterface $sessionYear;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(UserInterface $user, StaffInterface $staff, SchoolInterface $school, StaffSupportSchoolInterface $staffSupportSchool, FeaturesService $features, SubscriptionInterface $subscription, CachingService $cache, SubscriptionService $subscriptionService, PayrollSettingInterface $payrollSetting, StaffSalaryInterface $staffSalary) {
+    public function __construct(UserInterface$user, StaffInterface $staff, SchoolInterface $school, StaffSupportSchoolInterface $staffSupportSchool, FeaturesService $features, SubscriptionInterface $subscription, CachingService $cache, SubscriptionService $subscriptionService, PayrollSettingInterface $payrollSetting, StaffSalaryInterface $staffSalary, FormFieldsInterface $formFields, ExtraFormFieldsInterface $extraFormFields, SessionYearInterface $sessionYear, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->user = $user;
         $this->staff = $staff;
         $this->school = $school;
@@ -55,7 +66,10 @@ class StaffController extends Controller {
         $this->subscriptionService = $subscriptionService;
         $this->payrollSetting = $payrollSetting;
         $this->staffSalary = $staffSalary;
-
+        $this->formFields = $formFields;
+        $this->extraFormFields = $extraFormFields;
+        $this->sessionYear = $sessionYear;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index() {
@@ -68,10 +82,24 @@ class StaffController extends Controller {
         }
         $features = $this->features->getFeatures();
         // $features = array();
-        $allowances = $this->payrollSetting->builder()->where('type', 'allowance')->get();
-        $deductions = $this->payrollSetting->builder()->where('type', 'deduction')->get();
+
+        $allowances = [];
+        $deductions = [];
+
+        $sessionYears = [];
+        $extraFields = [];
+
+        if(Auth::user()->school_id) {
+            $allowances = $this->payrollSetting->builder()->where('type', 'allowance')->get();
+            $deductions = $this->payrollSetting->builder()->where('type', 'deduction')->get();
+            $extraFields = $this->formFields->defaultModel()->where('user_type', 2)->orderBy('rank')->get();    
+            $sessionYears = $this->sessionYear->all();
+        } else {
+            $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+        }
+
       
-        return response(view('staff.index', compact('roles', 'schools', 'features', 'allowances', 'deductions')));
+        return response(view('staff.index', compact('roles', 'schools', 'features', 'allowances', 'deductions', 'extraFields', 'sessionYears')));
     }
 
     public function store(Request $request) {
@@ -132,7 +160,10 @@ class StaffController extends Controller {
                     'password'   => Hash::make($request->mobile),
                     'image'      => $request->file('image'),
                     'status'     => $request->status ?? 0,
-                    'deleted_at' => $request->status == 1 ? null : '1970-01-01 01:00:00'
+                    'deleted_at' => $request->status == 1 ? null : '1970-01-01 01:00:00',
+                    'two_factor_enabled' => 0,
+                    'two_factor_secret' => null,
+                    'two_factor_expires_at' => null,
                 );
             } else {
                 /*If School Admin creates the Staff then active/inactive staff based on status*/
@@ -141,13 +172,38 @@ class StaffController extends Controller {
                     'password' => Hash::make($request->mobile),
                     'image'    => $request->file('image'),
                     'status'   => 1,
+                    'two_factor_enabled' => 0,
+                    'two_factor_secret' => null,
+                    'two_factor_expires_at' => null,
                 );
             }
 
 
             $user = $this->user->create($data);
-            $user->assignRole($role);
+            
 
+            // Store Extra Details
+            $extraDetails = array();
+           
+            if (isset($request->extra_fields) && is_array($request->extra_fields)) {
+                foreach ($request->extra_fields as $fields) {
+                    $data = null;
+                    if (isset($fields['data'])) {
+                        $data = (is_array($fields['data']) ? json_encode($fields['data'], JSON_THROW_ON_ERROR) : $fields['data']);
+                    }
+                    $extraDetails[] = array(
+                        'user_id'       => $user->id,
+                        'form_field_id' => $fields['form_field_id'],
+                        'data'          => $data,
+                    );
+                }
+            }
+
+            if (!empty($extraDetails)) {
+                $this->extraFormFields->createBulk($extraDetails);
+            }
+
+            $user->assignRole($role);
             if ($user->school_id) {
                 $leave_permission = [
                     'leave-list',
@@ -158,12 +214,24 @@ class StaffController extends Controller {
                 $user->givePermissionTo($leave_permission);
             }
 
-           $staff = $this->staff->create([
-                'user_id'       => $user->id,
-                'qualification' => null,
-                'salary'        => $request->salary ?? 0,
-                'joining_date' => date('Y-m-d',strtotime($request->joining_date))
-            ]);
+            if(Auth::user() && Auth::user()->school_id) {
+                $staff = $this->staff->create([
+                    'user_id'       => $user->id,
+                    'qualification' => null,
+                    'salary'        => $request->salary ?? 0,
+                    'joining_date' => date('Y-m-d',strtotime($request->joining_date)),
+                    'session_year_id' => $request->session_year_id,
+                    'join_session_year_id' => $request->session_year_id,
+                    'leave_session_year_id' => null
+                ]); 
+            } else {
+                $staff = $this->staff->create([
+                    'user_id'       => $user->id,
+                    'qualification' => null,
+                    'salary'        => $request->salary ?? 0,
+                    'joining_date' => date('Y-m-d',strtotime($request->joining_date)),
+                ]);
+            }
 
 
             if ($request->school_id) {
@@ -213,6 +281,11 @@ class StaffController extends Controller {
                 $this->staffSalary->upsert($deduction_data,['staff_id','payroll_setting_id'],['amount','percentage']);
             }
 
+            if(Auth::user() && Auth::user()->school_id) {
+                $sessionYear = $this->cache->getDefaultSessionYear();
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Staff', $staff->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
+
             DB::commit();
 
             if ($user->school_id) {
@@ -224,6 +297,7 @@ class StaffController extends Controller {
 
         } catch (Throwable $e) {
             if (Str::contains($e->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                DB::commit();
                 ResponseService::warningResponse("Staff Registered successfully. But Email not sent.");
             } else {
                 DB::rollback();
@@ -241,10 +315,26 @@ class StaffController extends Controller {
         $limit = request('limit', 10);
         $sort = request('sort', 'id');
         $order = request('order', 'DESC');
+        $session_year_id = request('session_year_id');
 
-        $sql = $this->user->builder()->whereHas('roles', function ($q) {
-            $q->where('custom_role', 1)->whereNot('name', 'Teacher');
-        })->with('staff', 'roles', 'support_school.school', 'staff.staffSalary');
+        $sql = $this->user->builder()
+            ->whereHas('roles', function ($q) {
+                $q->where('custom_role', 1);
+            })
+            ->orWhereHas('roles', function ($q) {
+                $q->where('name', 'Teacher');
+            })
+            ->with('staff', 'roles', 'support_school.school');
+
+        if ($session_year_id) {
+            $sql->whereHas('staff', function ($q) use ($session_year_id) {
+                $q->where('session_year_id', $session_year_id);
+            });
+        }
+
+        // i want to get the session_year_id from the staff table
+        // $sql->with('staff.session_year');
+
 
         //        if (!empty(Auth::user()->school_id)) {
         //            //Code For School Panel
@@ -301,8 +391,25 @@ class StaffController extends Controller {
             $tempRow['no'] = $no++;
             $tempRow['support_school_id'] = $row->support_school->pluck('school_id');
             $tempRow['operate'] = $operate;
-            $tempRow['roles_name'] = $row->roles->pluck('name');      
-            $rows[] = $tempRow;
+            $tempRow['roles_name'] = $row->roles->pluck('name');   
+            if(Auth::user()->school_id) {
+                $tempRow['extra_fields'] = $row->extra_user_datas;
+                foreach ($row->extra_user_datas as $key => $field) {
+                    $data = '';
+                    if ($field->form_field->type == 'checkbox') {
+                        $data = json_decode($field->data);
+                    } elseif ($field->form_field->type == 'file') {
+                        $data = '<a href="'.Storage::url($field->data).'" target="_blank">DOC</a>';
+                    } elseif ($field->form_field->type == 'dropdown') {
+                        $defaultValues = $field->form_field->default_values;
+                        $data = $defaultValues[$field->data] ?? '';
+                    } else {
+                        $data = $field->data;
+                    }
+                    $tempRow[$field->form_field->name] = $data;
+                }   
+            }
+                $rows[] = $tempRow;
         }
 
         $bulkData['rows'] = $rows;
@@ -334,7 +441,45 @@ class StaffController extends Controller {
                 $data['password'] = Hash::make($request->mobile);
             }
 
+            if ($request->two_factor_verification == 1) {
+                $data['two_factor_secret'] = null;
+                $data['two_factor_expires_at'] = null;
+                $data['two_factor_enabled'] = 1;
+            } else {
+                $data['two_factor_secret'] = null;
+                $data['two_factor_expires_at'] = null;
+                $data['two_factor_enabled'] = 0;
+            }
+
             $user = $this->user->update($id, $data);
+
+            // Store Extra Details
+            $extraDetails = [];
+            foreach ($request->extra_fields ?? [] as $fields) {
+                if ($fields['input_type'] == 'file') {
+                    if (isset($fields['data']) && $fields['data'] instanceof UploadedFile) {
+                        $extraDetails[] = array(
+                            'id'            => $fields['id'],
+                            'user_id'    => $user->id,
+                            'form_field_id' => $fields['form_field_id'],
+                            'data'          => $fields['data']
+                        );
+                    }
+                } else {
+                    $data = null;
+                    if (isset($fields['data'])) {
+                        $data = (is_array($fields['data']) ? json_encode($fields['data'], JSON_THROW_ON_ERROR) : $fields['data']);
+                    }
+                    $extraDetails[] = array(
+                        'id'            => $fields['id'],
+                        'user_id'    => $user->id,
+                        'form_field_id' => $fields['form_field_id'],
+                        'data'          => $data,
+                    );
+                }
+            }
+            $this->extraFormFields->upsert($extraDetails, ['id'], ['data']);
+
             $oldRole = $user->roles;
             if ($oldRole[0]->id !== $request->role_id) {
                 $newRole = Role::findById($request->role_id);
@@ -383,6 +528,10 @@ class StaffController extends Controller {
             DB::beginTransaction();
             $user = $this->user->findById($id);
             $this->user->builder()->where('id', $id)->withTrashed()->update(['status' => $user->status == 0 ? 1 : 0, 'deleted_at' => $user->status == 1 ? now() : null]);
+            if(Auth::user() && Auth::user()->school_id) {
+                $sessionYear = $this->cache->getDefaultSessionYear();
+                $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\Staff', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
@@ -499,8 +648,11 @@ class StaffController extends Controller {
         $order = request('order', 'DESC');
 
         $sql = $this->user->builder()->whereHas('roles', function ($q) {
-            $q->where('custom_role', 1);
-        })->with('staff', 'roles', 'support_school.school');
+                $q->where('custom_role', 1);
+            })->orWhereHas('roles', function ($q) {
+                $q->where('name', 'Teacher');
+            })->with('staff', 'roles', 'support_school.school');
+
         
         if (!empty($_GET['search'])) {
             $search = $_GET['search'];
@@ -570,7 +722,11 @@ class StaffController extends Controller {
             $width = $settings['staff_page_width'] * 2.8346456693;
             // $customPaper = array(0,0,360,200);
             $customPaper = array(0,0,$width,$height);
-            $users = $this->user->builder()->select('id','first_name','last_name','image','school_id','gender','dob','mobile','email')->whereIn('id',$user_ids)->with('roles','staff')->get();
+            $users = $this->user->builder()->select('id','first_name','last_name','image','school_id','gender','dob','mobile','email')->whereIn('id',$user_ids)->with(['roles','staff','extra_user_datas' => function ($query) {
+                    $query->with(['form_field'])->where('deleted_at', null);
+                },
+            ])->get();
+
             $settings['staff_page_height'] = ($settings['staff_page_height'] * 3.7795275591).'px';
 
             $pdf = PDF::loadView('staff.staff_id_card',compact('users','sessionYear','valid_until','settings'));
@@ -613,7 +769,7 @@ class StaffController extends Controller {
             ResponseService::errorResponse($validator->errors()->first());
         }
         try {
-            Excel::import(new StaffImport($request->role_id), $request->file('file'));
+            Excel::import(new StaffImport($request->role_id,$request->is_send_notification), $request->file('file'));
             ResponseService::successResponse('Data Stored Successfully');
         } catch (ValidationException $e) {
             ResponseService::errorResponse($e->getMessage());
@@ -625,7 +781,7 @@ class StaffController extends Controller {
 
     public function downloadSampleFile() {
         try {
-            return Excel::download(new StaffDataExport(), 'import.xlsx');
+            return Excel::download(new StaffDataExport(), 'Staff_import.xlsx');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, 'Staff Controller ---> Download Sample File');
             ResponseService::errorResponse();

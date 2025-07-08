@@ -36,11 +36,14 @@ use Illuminate\Support\Facades\DB;
 use Stripe\Checkout\Session as StripeSession;
 use Stripe\Exception\ApiErrorException;
 use App\Services\SubscriptionService;
+use Illuminate\Support\Facades\Config;
 use PhpParser\Node\Stmt\TryCatch;
 use Razorpay\Api\Api;
 use Stripe\Stripe;
 use Stripe\StripeClient;
 use Throwable;
+use App\Services\PaymentService;
+use Illuminate\Support\Facades\Log;
 
 class SubscriptionController extends Controller
 {
@@ -109,7 +112,7 @@ class SubscriptionController extends Controller
         $system_settings = $settings;
 
         DB::setDefaultConnection('mysql');
-        $paymentConfiguration = PaymentConfiguration::on('mysql')->where('school_id', null)->where('payment_method','Razorpay')->where('status',1)->first();
+        $paymentConfiguration = PaymentConfiguration::on('mysql')->where('school_id', null)->where('status',1)->first();
 
         DB::setDefaultConnection('school');
         return view('subscription.index', compact('packages', 'features', 'current_plan', 'settings','upcoming_package','paymentConfiguration','system_settings'));
@@ -126,7 +129,13 @@ class SubscriptionController extends Controller
             ));
         }
         try {
-            return $this->subscriptionService->stripe_payment($request->id);
+            if ($request->payment_method == 'stripe') {
+                return $this->subscriptionService->stripe_payment(null, $request->package_id, $request->type, null, null);
+            } else if ($request->payment_method == 'paystack') {
+                return $this->subscriptionService->paystack_payment(null, $request->package_id, $request->type, null, null);
+            } else if ($request->payment_method == 'flutterwave') {
+                return $this->subscriptionService->flutterwave_payment(null, $request->package_id, $request->type, null, null);
+            }
         } catch (\Throwable $th) {
             return redirect()->back()->with('error', trans('server_not_responding'));
         }
@@ -225,9 +234,10 @@ class SubscriptionController extends Controller
             }
             if ($paymentConfiguration->payment_method == 'Stripe') {
                 return $this->subscriptionService->stripe_payment(null, $package_id, $type, null, $isCurrentPlan);    
-            } else {
-
-                
+            } else if ($paymentConfiguration->payment_method == 'Paystack') {
+                return $this->subscriptionService->paystack_payment(null, $package_id, $type, null, $isCurrentPlan);
+            } else if ($paymentConfiguration->payment_method == 'Flutterwave') {
+                return $this->subscriptionService->flutterwave_payment(null, $package_id, $type, null, $isCurrentPlan);
             }
             
             
@@ -249,10 +259,12 @@ class SubscriptionController extends Controller
         $order = request('order', 'DESC');
         $search = $_GET['search'];
         DB::setDefaultConnection('mysql');
+        $settings = app(CachingService::class)->getSystemSettings()->toArray();
         $paymentConfiguration = PaymentConfiguration::where('school_id', null)->first();
-        $currency = 'USD';
-        if ($paymentConfiguration) {
+        if($paymentConfiguration) {
             $currency = $paymentConfiguration->currency_code;
+        } else {
+            $currency = $settings['currency_code'];
         }
 
         $sql = $this->subscriptionBill->builder()->with('transaction','subscription.addons.feature')
@@ -365,7 +377,7 @@ class SubscriptionController extends Controller
                     $students = $this->user->builder()->withTrashed()->where(function ($q) use ($active_package) {
                         $q->whereBetween('deleted_at', [$active_package->start_date, $active_package->end_date]);
                     })->orWhereNull('deleted_at')->Owner()->role('Student')->count();
-    
+
                     $staffs = $this->staff->builder()->whereHas('user', function ($q) use ($active_package) {
                         $q->where(function ($q) use ($active_package) {
                             $q->withTrashed()->whereBetween('deleted_at', [$active_package->start_date, $active_package->end_date])
@@ -390,7 +402,7 @@ class SubscriptionController extends Controller
             $system_settings['currency_symbol'] = $system_settings['currency_symbol'] ?? '';
             $features = FeaturesService::getFeatures();
 
-
+            DB::setDefaultConnection('school');
 
             return view('subscription.subscription', compact('active_package', 'upcoming_package', 'data', 'school_settings', 'system_settings', 'features', 'paymentConfiguration'));
         } catch (Throwable $e) {
@@ -627,12 +639,11 @@ class SubscriptionController extends Controller
     public function bill_receipt($id)
     {
         DB::setDefaultConnection('mysql');
-        $subscriptionBill = SubscriptionBill::with('subscription.addons.transaction','transaction')->with(['subscription.addons' => function($q) {
+        $subscriptionBill = SubscriptionBill::with('subscription.addons.transaction','transaction','school')->with(['subscription.addons' => function($q) {
             $q->withTrashed()->with('feature');
         }])->find($id);
 
         $settings = app(CachingService::class)->getSystemSettings()->toArray();
-        $school_settings = app(CachingService::class)->getSchoolSettings('*', $subscriptionBill->school_id)->toArray();
 
         $settings['horizontal_logo'] = basename($settings['horizontal_logo'] ?? '');
 
@@ -644,13 +655,24 @@ class SubscriptionController extends Controller
         }
 
         $paymentConfiguration = PaymentConfiguration::where('school_id', null)->first();
-        $currency = $paymentConfiguration->currency_code;
+        $currency = '';
+        if($paymentConfiguration) {
+            $currency = $paymentConfiguration->currency_code;
+        } else {
+            $currency = $settings['currency_code'];
+        }
 
         $deafult_amount = $this->subscriptionService->checkMinimumAmount(strtoupper($currency), $subscriptionBill->amount);
 
         $start_date = Carbon::parse($subscriptionBill->subscription->start_date);
         $usage_days = $start_date->diffInDays(Carbon::parse($subscriptionBill->subscription->end_date)) + 1;
 
+        DB::setDefaultConnection('school');
+        Config::set('database.connections.school.database', $subscriptionBill->school->database_name);
+        DB::purge('school');
+        DB::connection('school')->reconnect();
+        DB::setDefaultConnection('school');
+        $school_settings = app(CachingService::class)->getSchoolSettings('*', $subscriptionBill->school_id)->toArray();
 
         $pdf = Pdf::loadView('subscription.subscription_receipt', compact('settings', 'subscriptionBill', 'school_settings', 'status', 'transaction_id', 'deafult_amount','usage_days'));
         return $pdf->stream('subscription.pdf');
@@ -1139,7 +1161,15 @@ class SubscriptionController extends Controller
         $sort = request('sort', 'id');
         $order = request('order', 'DESC');
 
-        $sql = $this->subscriptionBill->builder()->with('school:id,name,logo','transaction')->has('transaction')->where('amount','>',0);
+        $sql = $this->subscriptionBill->builder()
+            ->with([
+                'school:id,name,logo',
+                'transaction',
+                'addons',
+                'subscription.addons'
+            ])
+            ->has('transaction')
+            ->where('amount', '>', 0);
 
         if (!empty($request->search)) {
             $search = $request->search;
@@ -1157,9 +1187,14 @@ class SubscriptionController extends Controller
 
         $currency = '';
         $paymentConfiguration = '';
+        $settings = app(CachingService::class)->getSystemSettings()->toArray();
         $paymentConfiguration = PaymentConfiguration::where('school_id', null)->first();
-        $currency = $paymentConfiguration->currency_code;
-    
+
+        if($paymentConfiguration) {
+            $currency = $paymentConfiguration->currency_code;
+        } else {
+            $currency = $settings['currency_code'];
+        }
 
         if (!empty($request->payment_status)) {
             $sql->whereHas('transaction',function($q) use($request){
@@ -1181,14 +1216,29 @@ class SubscriptionController extends Controller
             } else {
                 $amount = $this->subscriptionService->checkMinimumAmount(strtoupper($currency), number_format($row->amount, 2));
             }
-            $amount = floatval($amount);
-            $tempRow['amount'] = number_format($amount, 2);
+
+            $tempRow['amount'] = $amount;
             $tempRow['payment_gateway'] = $row->transaction->payment_gateway;
             $tempRow['order_id'] = $row->transaction->order_id;
             $tempRow['payment_id'] = $row->transaction->payment_id;
             $tempRow['payment_status'] = $row->transaction->payment_status;
             $tempRow['date'] = $row->transaction->created_at;
             $tempRow['no'] = $no++;
+
+            // Add addons information
+            $tempRow['addons'] = [];
+            if ($row->addons) {
+                foreach ($row->addons as $addon) {
+                    $tempRow['addons'][] = [
+                        'feature_name' => $addon->addon->name ?? '',
+                        'price' => number_format($addon->price, 2),
+                        'start_date' => $addon->start_date,
+                        'end_date' => $addon->end_date,
+                        'status' => $addon->status
+                    ];
+                }
+            }
+
             $rows[] = $tempRow;
         }
         $bulkData['rows'] = $rows;
@@ -1313,8 +1363,16 @@ class SubscriptionController extends Controller
             //     ];
             // }
             // $this->subscriptionFeature->upsert($subscription_features, ['subscription_id', 'feature_id'], ['subscription_id', 'feature_id']);
-            
-            return $this->subscriptionService->stripe_payment(null, $package_id, $type, $subscription_id);
+            $paymentConfiguration = PaymentConfiguration::where('school_id', null)->where('status', 1)->first();
+
+            if ($paymentConfiguration->payment_method == 'Stripe') {
+                return $this->subscriptionService->stripe_payment(null, $package_id, $type, $subscription_id);
+            } else if ($paymentConfiguration->payment_method == 'Paystack') {
+                return $this->subscriptionService->paystack_payment(null, $package_id, $type, $subscription_id);
+            } else if ($paymentConfiguration->payment_method == 'Flutterwave') {
+                return $this->subscriptionService->flutterwave_payment(null, $package_id, $type, $subscription_id);
+            }
+
             // DB::commit();
             // return $subscription = $this->prepaid_plan($package_id, $type, $subscription_id);
             
@@ -1379,7 +1437,8 @@ class SubscriptionController extends Controller
         }
         $schoolId = Auth::user()->school_id;
         DB::setDefaultConnection('mysql');
-        $paymentConfiguration = PaymentConfiguration::whereNull('school_id')->where(['payment_method' => 'razorpay'])->first();
+        $paymentConfiguration = PaymentConfiguration::whereNull('school_id')->where(['payment_method' => 'Razorpay'])->where('status',1)->first();
+        \Log::info('==========> '.$paymentConfiguration);
         $api = new Api($paymentConfiguration->api_key, $paymentConfiguration->secret_key);
 
         $paymentTransactionData = $this->paymentTransaction->create([
@@ -1409,7 +1468,7 @@ class SubscriptionController extends Controller
             
         ];
         
-        $amount = intval(($request->amount * 100));
+        $amount = max(100, round($request->amount * 100)); // Ensure minimum ₹1.00 (100 paise)
         $order = $api->order->create([
             'receipt' => time() . mt_rand(0, 999999),
             'amount' => $amount,
@@ -1417,6 +1476,7 @@ class SubscriptionController extends Controller
             'notes' => $customMetaData,
             'payment_capture' => 1
         ]);
+        
         $data = [
             'order' => $order->toArray(),
             'paymentTransaction' => $paymentTransactionData
@@ -1429,8 +1489,6 @@ class SubscriptionController extends Controller
         ];
 
         return response()->json($response);
-
-
     }
 
     public function razorpay(Request $request)
@@ -1442,9 +1500,8 @@ class SubscriptionController extends Controller
             $currency_code = $systemSettings['currency_code'] ?? 'INR';
             // $api = app(Api::class);
             DB::setDefaultConnection('mysql');
-            $paymentConfiguration = PaymentConfiguration::whereNull('school_id')->where('payment_method', 'razorpay')->first();
+            $paymentConfiguration = PaymentConfiguration::whereNull('school_id')->where('payment_method', 'Razorpay')->where('status',1)->first();
             $api = new Api($paymentConfiguration->api_key, $paymentConfiguration->secret_key);
-
 
             PaymentTransaction::find($request->paymentTransactionId)->update([
                 'order_id'        => $request->razorpay_order_id,
@@ -1465,7 +1522,7 @@ class SubscriptionController extends Controller
                 'feature_id' => $request->feature_id ?? '',
                 'end_date' => $request->end_date ?? '',
             ];
-            $amount = intval(($request->amount * 100));
+            $amount = max(100, round($request->amount * 100)); // Ensure minimum ₹1.00 (100 paise)
             $api->order->create([
                 'receipt' => $request->razorpay_order_id,
                 'amount' => $amount, // amount in the smallest currency unit
@@ -1481,4 +1538,5 @@ class SubscriptionController extends Controller
             return $th;
         }
     }
+
 }

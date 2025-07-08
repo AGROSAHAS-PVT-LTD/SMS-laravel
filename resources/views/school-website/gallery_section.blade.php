@@ -4,7 +4,7 @@
             <div class="row">
                 <div class="col-12">
                     <div class="flex_column_center">
-                        <span class="commonTag"> {{ $schoolSettings['gallery_section'] ?? 'Our Photo Gallery' }} </span>
+                        <span class="commonTag"> {{ $schoolSettings['gallery_heading'] ?? 'Our Photo Gallery' }} </span>
                         <span class="commonTitle">
 
                             {{ $schoolSettings['gallery_title'] ?? 'Tiny Scholars Showcase' }}

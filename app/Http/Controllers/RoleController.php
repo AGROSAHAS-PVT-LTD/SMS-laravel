@@ -6,7 +6,9 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Rules\uniqueForSchool;
 use App\Services\BootstrapTableService;
+use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +22,10 @@ class RoleController extends Controller {
      */
     private array $reserveRole;
 
-    public function __construct() {
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
+    private CachingService $cache;
+
+    public function __construct(SessionYearsTrackingsService $sessionYearsTrackingsService, CachingService $cache) {
         $this->middleware('permission:role-list|role-create|role-edit|role-delete', ['only' => ['index', 'store']]);
         $this->middleware('permission:role-create', ['only' => ['create', 'store']]);
         $this->middleware('permission:role-edit', ['only' => ['edit', 'update']]);
@@ -33,6 +38,8 @@ class RoleController extends Controller {
             'Guardian',
             'Student'
         ];
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
+        $this->cache = $cache;
     }
 
 
@@ -51,12 +58,24 @@ class RoleController extends Controller {
         $sort = request('sort', 'id');
         $order = request('order', 'DESC');
 
-        $sql = Role::where('editable', 1)->whereNot('name','Teacher');
+        // If user is school admin or super admin, then show all roles
+        if(Auth::user() && Auth::user()->school_id) {
+            $sql = Role::with('session_years_trackings')->where('editable', 1)->whereNot('name','Teacher');
+        } else {
+            $sql = Role::where('editable', 1)->whereNot('name','Teacher');
+        }
 
         if (!empty($request->search)) {
             $search = $request->search;
             $sql->where(function ($query) use ($search) {
                 $query->where('id', 'LIKE', "%$search%")->orwhere('name', 'LIKE', "%$search%");
+            });
+        }
+
+        if(Auth::user() && Auth::user()->school_id) {
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $sql->whereHas('session_years_trackings', function ($q) use ($sessionYear) {
+                $q->where('session_year_id', $sessionYear->id);
             });
         }
 
@@ -116,6 +135,12 @@ class RoleController extends Controller {
             DB::beginTransaction();
             $role = Role::create(['name' => $request->input('name'), 'school_id' => Auth::user()->school_id]);
             $role->syncPermissions($request->input('permission'));
+
+            if(Auth::user() && Auth::user()->school_id) {
+                $sessionYear = $this->cache->getDefaultSessionYear();
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Role', $role->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
+
             DB::commit();
             return redirect()->route('roles.index')->with('success', trans('Data Stored Successfully'));
         } catch (Throwable $e) {
@@ -199,6 +224,10 @@ class RoleController extends Controller {
                 ResponseService::errorResponse('cannot_delete_because_data_is_associated_with_other_data');
             } else {
                 Role::findOrFail($id)->delete();
+                if(Auth::user() && Auth::user()->school_id) {
+                    $sessionYear = $this->cache->getDefaultSessionYear();
+                    $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\Role', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+                }
                 ResponseService::successResponse('Data Deleted Successfully');
             }
             

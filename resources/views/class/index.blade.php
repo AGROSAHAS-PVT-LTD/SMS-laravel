@@ -76,7 +76,7 @@
                             </div>
                             <div class="form-group" id="stream-wise-section-div" style="display: none;">
                                 @foreach ($streams as $stream)
-                                    <div id="{{ str_replace(" ", "-", $stream->name) }}-section-div" class="stream-divs" style="display: none;">
+                                    <div id="{{ preg_replace('/\s+/', '-', trim($stream->name)) }}-section-div" class="stream-divs" style="display: none;">
                                         <label class="mb-0 mt-3">{{ __('section').' ('.$stream->name.')'}} <span class="text-danger">*</span></label>
                                         <div class="d-flex">
                                             @foreach ($sections as $section)

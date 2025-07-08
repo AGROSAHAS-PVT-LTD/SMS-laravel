@@ -250,6 +250,8 @@ class ClassSchoolController extends Controller {
                         $q->where('name', 'LIKE', "%$search%");
                     })->orWhereHas('medium', function ($q) use ($search) {
                         $q->where('name', 'LIKE', "%$search%");
+                    })->orWhereHas('shift', function ($q) use ($search) {
+                        $q->where('name', 'LIKE', "%$search%");
                     })->Owner();
                 });
             })
@@ -259,6 +261,11 @@ class ClassSchoolController extends Controller {
         if (!empty($request->medium_id)) {
             $sql = $sql->where('medium_id', $request->medium_id);
         }
+
+        if (!empty($request->shift_id)) { 
+            $sql = $sql->where('shift_id', $request->shift_id);
+        }
+
         $total = $sql->count();
 
         $sql->orderBy($sort, $order)->skip($offset)->take($limit);
@@ -289,6 +296,8 @@ class ClassSchoolController extends Controller {
             
             $tempRow['semesters'] = $semesters;
             $tempRow['operate'] = $operate;
+            $tempRow['created_at'] = $row->created_at;
+            $tempRow['updated_at'] = $row->updated_at;
             $rows[] = $tempRow;
         }
 
@@ -461,6 +470,27 @@ class ClassSchoolController extends Controller {
         if (!empty($request->medium_id)) {
             $sql = $sql->where('medium_id', $request->medium_id);
         }
+
+        if (!empty($request->shift_id)) {
+            $sql = $sql->where('shift_id', $request->shift_id);
+        }
+
+        if (!empty($request->stream_id)) {
+            $sql = $sql->where('stream_id', $request->stream_id);
+        }
+
+        if (!empty($request->core_subject_id)) {
+            $sql = $sql->whereHas('core_subjects', function($q) use ($request) {
+                $q->where('id', $request->core_subject_id);
+            });
+        }
+
+        if (!empty($request->elective_subject_group_id)) {
+            $sql = $sql->whereHas('elective_subject_groups.subjects', function($q) use ($request) {
+                $q->where('id', $request->elective_subject_group_id);
+            });
+        }
+
         $total = $sql->count();
 
         $sql->orderBy($sort, $order)->skip($offset)->take($limit);
@@ -498,6 +528,8 @@ class ClassSchoolController extends Controller {
             }
 
             $tempRow['operate'] = $operate;
+            $tempRow['created_at'] = $row->created_at;
+            $tempRow['updated_at'] = $row->updated_at;
             $rows[] = $tempRow;
         }
 

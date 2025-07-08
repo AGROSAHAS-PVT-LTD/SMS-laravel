@@ -12,9 +12,9 @@
 
                 <div class="col-sm-12 col-md-12 col-lg-6">
                     <div class="aboutContentWrapper">
-                        <span class="commonTag"> {{ $schoolSettings['about_us_section'] ?? 'About Us' }} </span>
+                        <span class="commonTag"> {{ $schoolSettings['about_us_title'] ?? 'About Us' }} </span>
                         <span class="commonTitle">
-                            {{ $schoolSettings['about_us_title'] ?? 'Personalized Learning for Every Student' }}
+                            {{ $schoolSettings['about_us_heading'] ?? 'Personalized Learning for Every Student' }}
                         </span>
                         <span class="commonDesc">
                             {{ $schoolSettings['about_us_description'] ?? 'Personalized Learning for Every Student' }}

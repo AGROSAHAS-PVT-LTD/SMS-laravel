@@ -60,8 +60,8 @@ class WebSettingsController extends Controller
         ResponseService::noPermissionThenRedirect('web-settings');
 
         $request->validate([
-            'hero_title_1'         => 'required',
-            'hero_title_2'         => 'required',
+            'hero_title_1'         => 'nullable',
+            'hero_title_2'         => 'nullable',
             'about_us_title'         => 'required',
             'about_us_heading'         => 'required',
             'about_us_description'         => 'required',
@@ -144,12 +144,33 @@ class WebSettingsController extends Controller
     {
         ResponseService::noPermissionThenRedirect('web-settings');
 
-        return view('web_settings.feature_section');
+        $featureSection = $this->featureSection->builder()->get();
+        
+        return view('web_settings.feature_section',compact('featureSection'));
     }
 
     public function feature_section_store(Request $request)
     {
         ResponseService::noPermissionThenRedirect('web-settings');
+        
+        $validator = Validator::make($request->all(), [
+            'title' => 'required',
+            'heading' => 'required',
+            'section_data' => 'required|array',
+            'section_data.*.feature' => 'required|string',
+            'section_data.*.description' => 'required|string',
+            'section_data.*.image' => 'required|file|mimes:jpeg,png,jpg,svg',
+        ], [
+            'title.required' => 'Title is required.',
+            'heading.required' => 'Heading is required.',
+            'section_data.required' => 'Section Data is required.',
+            'section_data.*.image.mimes' => 'Image must be a jpg, jpeg, png, svg file.',
+        ]);
+
+        if ($validator->fails()) {
+            ResponseService::validationError($validator->errors()->first());
+        }
+        
         try {
             DB::beginTransaction();
             $feature_section_data = [
@@ -231,6 +252,23 @@ class WebSettingsController extends Controller
     {
         ResponseService::noPermissionThenRedirect('web-settings');
 
+        $validator = Validator::make($request->all(), [
+            'title' => 'required',
+            'heading' => 'required',
+            'section_data' => 'required|array',
+            'section_data.*.feature' => 'required|string',
+            'section_data.*.description' => 'required|string',
+            'section_data.*.image' => 'file|mimes:jpeg,png,jpg,svg',
+        ], [
+            'title.required' => 'Title is required.',
+            'heading.required' => 'Heading is required.',
+            'section_data.*.image.mimes' => 'Image must be a jpg, jpeg, png, svg file.',
+        ]);
+
+        if ($validator->fails()) {
+            ResponseService::validationError($validator->errors()->first());
+        }
+
         try {
             DB::beginTransaction();
             $feature_section_data = [
@@ -239,53 +277,75 @@ class WebSettingsController extends Controller
                 'rank' => 0
             ];
             $featureSection = $this->featureSection->update($id, $feature_section_data);
-            $data_with_image = array(); // with adding image [ update / create ]
-            $data_without_image = array(); // without image
-            foreach ($request->section_data as $key => $section) {
-                // To check image select or not
-                if (isset($section['image'])) {
-                    // Check already exits record or not
-                    if (isset($section['id'])) {
-                        // If image & id found then delete old image file from storage
-                        $section_feature = $this->featureSectionList->findById($section['id']);
-                        if ($section_feature) {
-                            if ($section_feature->image && Storage::disk('public')->exists($section_feature->getRawOriginal('image'))) {
-                                Storage::disk('public')->delete($section_feature->getRawOriginal('image'));
-                            }
-                        }
-                    }
-                    // Set data with image
-                    $data_with_image[] = [
-                        'id' => $section['id'],
-                        'feature_section_id' => $featureSection->id,
-                        'feature' => $section['feature'],
-                        'description' => $section['description'],
-                        'image' => $section['image']->store('feature_section','public'),
-                    ];
-                } else {
-                    // Set data without image
-                    $data_without_image[] = [
-                        'id' => $section['id'],
-                        'feature_section_id' => $featureSection->id,
-                        'feature' => $section['feature'],
-                        'description' => $section['description'],
-                        // 'image' => $section['image']->store('feature_section','public'),
-                    ];
-                }
-                
+            
+            if (!$featureSection) {
+                throw new \Exception("Feature section update failed or no record found with ID {$id}");
             }
-            // With image
-            $this->featureSectionList->upsert($data_with_image, ['id'],['feature_section_id', 'feature', 'description', 'image']);
-            // Without image
-            $this->featureSectionList->upsert($data_without_image, ['id'],['feature_section_id', 'feature', 'description']);
+    
+            // Initialize arrays to handle features with and without images
+            $data_with_image = [];
+            $data_without_image = [];
+    
+            // Retrieve the existing features for this section
+            $existing_features = $this->featureSectionList->builder()->where('feature_section_id',$id)->get();
+            
+            if (!$existing_features) {
+                throw new \Exception("No existing features found for ID {$id}");
+            }
+    
+            // To track IDs of the features that are in the updated request
+            $updated_feature_ids = [];
+    
+            // Process each section in the request
+            if (is_array($request->section_data)) {
+                foreach ($request->section_data as $key => $section) {
+                    // Add the feature id to updated_feature_ids array to track it
+                    $updated_feature_ids[] = $section['id'];
+    
+                    if (isset($section['image']) && $section['image'] instanceof \Illuminate\Http\UploadedFile) {
+                        // Handle file upload
+                        $data_with_image[] = [
+                            'id' => $section['id'],
+                            'feature_section_id' => $featureSection->id,
+                            'feature' => $section['feature'],
+                            'description' => $section['description'],
+                            'image' => $section['image']->store('feature_section', 'public'),
+                        ];
+                    } else {
+                        // Handle case when there's no image
+                        $data_without_image[] = [
+                            'id' => $section['id'],
+                            'feature_section_id' => $featureSection->id,
+                            'feature' => $section['feature'],
+                            'description' => $section['description'],
+                        ];
+                    }
+                }
+            }
+    
+            // Delete features that are no longer in the updated request
+            foreach ($existing_features as $existing_feature) {
+                if (!in_array($existing_feature->id, $updated_feature_ids)) {
+                    // If the feature does not exist in the updated list, delete it
+                    if ($existing_feature->image && Storage::disk('public')->exists($existing_feature->getRawOriginal('image'))) {
+                        Storage::disk('public')->delete($existing_feature->getRawOriginal('image'));
+                    }
+                    $existing_feature->delete();
+                }
+            }
+    
+            // Perform the upsert operations
+            $this->featureSectionList->upsert($data_with_image, ['id'], ['feature_section_id', 'feature', 'description', 'image']);
+            $this->featureSectionList->upsert($data_without_image, ['id'], ['feature_section_id', 'feature', 'description']);
+    
             DB::commit();
+    
             ResponseService::successResponse('Data Updated Successfully');
         } catch (\Throwable $th) {
             DB::rollBack();
             ResponseService::logErrorResponse($th);
             ResponseService::errorResponse();
         }
-
     }
 
     public function feature_section_delete($id)
@@ -334,10 +394,6 @@ class WebSettingsController extends Controller
     
     public function school_index()
     {
-        // $systemSettings = $this->cache->getSystemSettings();
-        // if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-        //     return redirect('/');
-        // }
         ResponseService::noFeatureThenRedirect('Website Management');
         ResponseService::noPermissionThenSendJson('school-web-settings');
 
@@ -354,10 +410,6 @@ class WebSettingsController extends Controller
 
     public function school_store(Request $request)
     {
-        $systemSettings = $this->cache->getSystemSettings();
-        if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-            return redirect('/');
-        }
         ResponseService::noFeatureThenRedirect('Website Management');
         ResponseService::noPermissionThenSendJson('school-web-settings');
         $settings = [
@@ -465,7 +517,7 @@ class WebSettingsController extends Controller
                     } else {
                         $data[] = [
                             "name" => $key,
-                            "data" => 0,
+                            "data" => null,
                             "type" => "string"
                         ];
                     }

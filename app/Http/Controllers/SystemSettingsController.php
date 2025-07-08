@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Feature;
 use App\Models\Subscription;
 use App\Models\SubscriptionFeature;
+use App\Models\User;
 use App\Repositories\Feature\FeatureInterface;
 use App\Repositories\Package\PackageInterface;
 use App\Repositories\PackageFeature\PackageFeatureInterface;
@@ -50,7 +51,8 @@ class SystemSettingsController extends Controller {
         $getDateFormat = getDateFormat();
         $getTimezoneList = getTimezoneList();
         $getTimeFormat = getTimeFormat();
-        return view('settings.system-settings', compact('settings', 'getDateFormat', 'getTimezoneList', 'getTimeFormat'));
+        $get_two_factor_verification = User::where('id', Auth::user()->id)->pluck('two_factor_enabled')->toArray()[0] ? 1 : 0;
+        return view('settings.system-settings', compact('settings', 'getDateFormat', 'getTimezoneList', 'getTimeFormat','get_two_factor_verification'));
     }
 
 
@@ -65,7 +67,7 @@ class SystemSettingsController extends Controller {
 
         $settings = array(
             'time_zone', 'date_format', 'time_format', 'theme_color', 'horizontal_logo', 'vertical_logo', 'favicon',
-            'system_name', 'address', 'tag_line', 'mobile', 'login_page_logo', 'hero_description','school_code_prefix'
+            'system_name', 'address', 'tag_line', 'mobile', 'login_page_logo', 'hero_description','school_code_prefix', 'school_inquiry', 'web_maintenance', 'file_upload_size_limit',
             //            'currency_code','currency_symbol'
         );
         try {
@@ -89,21 +91,9 @@ class SystemSettingsController extends Controller {
                 }
             }
 
-            // if ($request->website_management) {
-            //     Feature::where('name','Website Management')->update(['status' => 1]);
-            //     $data[] = [
-            //         "name" => 'school_website_feature',
-            //         "data" => 1,
-            //         "type" => "integer"
-            //     ];
-            // } else {
-            //     Feature::where('name','Website Management')->update(['status' => 0]);
-            //     $data[] = [
-            //         "name" => 'school_website_feature',
-            //         "data" => 0,
-            //         "type" => "integer"
-            //     ];
-            // }
+            if ($request->two_factor_verification == 1 || $request->two_factor_verification == 0) {
+                User::where('id', Auth::user()->id)->update(['two_factor_enabled' => $request->two_factor_verification ? 1 : 0]);
+            }
             
             EnvSet::setKey('timezone', $request->time_zone);
             EnvSet::save();
@@ -124,8 +114,8 @@ class SystemSettingsController extends Controller {
     public function update(Request $request) {
         ResponseService::noAnyPermissionThenRedirect(['system-setting-manage', 'email-setting-create']);
         $validator = Validator::make($request->all(), [
-            'name' => 'required',
-            'data' => 'required'
+            'name' => 'nullable',
+            'data' => 'nullable'
         ]);
         if ($validator->fails()) {
             ResponseService::validationError($validator->errors()->first());
@@ -156,9 +146,11 @@ class SystemSettingsController extends Controller {
 
     public function privacyPolicy() {
         ResponseService::noPermissionThenRedirect('privacy-policy');
-        $name = 'privacy_policy';
-        $data = htmlspecialchars_decode($this->cache->getSystemSettings($name));
-        return view('settings.privacy-policy', compact('name', 'data'));
+        $privacy_policy_data = htmlspecialchars_decode($this->cache->getSystemSettings('privacy_policy'));
+        $student_parent_privacy_policy_data = htmlspecialchars_decode($this->cache->getSystemSettings('student_parent_privacy_policy'));
+        $teacher_staff_privacy_policy_data = htmlspecialchars_decode($this->cache->getSystemSettings('teacher_staff_privacy_policy'));
+
+        return view('settings.privacy-policy.privacy-policy', compact('privacy_policy_data', 'student_parent_privacy_policy_data', 'teacher_staff_privacy_policy_data'));
     }
 
     public function contactUs() {
@@ -177,9 +169,13 @@ class SystemSettingsController extends Controller {
 
     public function termsConditions() {
         ResponseService::noPermissionThenRedirect('terms-condition');
-        $name = 'terms_condition';
-        $data = htmlspecialchars_decode($this->cache->getSystemSettings($name));
-        return view('settings.terms-condition', compact('name', 'data'));
+        $terms_condition_data = htmlspecialchars_decode($this->cache->getSystemSettings('terms_condition'));
+        $student_terms_condition_data = htmlspecialchars_decode($this->cache->getSystemSettings('student_terms_condition'));
+        $teacher_terms_condition_data = htmlspecialchars_decode($this->cache->getSystemSettings('teacher_terms_condition'));
+        $refund_cancellation_data = htmlspecialchars_decode($this->cache->getSystemSettings('refund_cancellation'));
+        $school_terms_condition_data = htmlspecialchars_decode($this->cache->getSystemSettings('school_terms_condition'));
+        
+        return view('settings.terms-condition.terms-condition', compact('terms_condition_data', 'student_terms_condition_data', 'teacher_terms_condition_data', 'refund_cancellation_data', 'school_terms_condition_data'));
     }
 
     public function appSettingsIndex() {
@@ -341,9 +337,11 @@ class SystemSettingsController extends Controller {
             });
             $this->systemSettings->updateOrCreate(['name' => 'email_verified'], ['data' => 1, 'type' => 'string']);
             $this->cache->removeSystemCache(config('constants.CACHE.SYSTEM.SETTINGS'));
+            DB::commit();
             ResponseService::successResponse("Email Sent Successfully");
         } catch (Throwable $e) {
             if (Str::contains($e->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                DB::commit();
                 $error = "Email verification failed Please check your SMTP credentials";
             } else {
                 $error = $e->getMessage() . ' in ' . $e->getFile() . ' At Line : ' . $e->getLine();
@@ -384,6 +382,16 @@ class SystemSettingsController extends Controller {
             'gateway.Razorpay.api_key' => 'required_if:gateway.Razorpay.status,1',
             'gateway.Razorpay.secret_key' => 'required_if:gateway.Razorpay.status,1',
             'gateway.Razorpay.webhook_secret_key' => 'required_if:gateway.Razorpay.status,1',
+
+            'gateway.Paystack.status' => 'required|boolean',
+            'gateway.Paystack.api_key' => 'required_if:gateway.Paystack.status,1',
+            'gateway.Paystack.secret_key' => 'required_if:gateway.Paystack.status,1',
+            'gateway.Paystack.webhook_secret_key' => 'required_if:gateway.Paystack.status,1',
+
+            'gateway.Flutterwave.status' => 'required|boolean',
+            'gateway.Flutterwave.api_key' => 'required_if:gateway.Flutterwave.status,1',
+            'gateway.Flutterwave.secret_key' => 'required_if:gateway.Flutterwave.status,1',
+            'gateway.Flutterwave.webhook_secret_key' => 'required_if:gateway.Flutterwave.status,1',
         ], [
             'gateway.Stripe.api_key.required_if' => trans('The Stripe Publishable Key is required when Stripe is enabled'),
             'gateway.Stripe.secret_key.required_if' => trans('The Stripe Secret Key is required when Stripe is enabled'),
@@ -392,6 +400,15 @@ class SystemSettingsController extends Controller {
             'gateway.Razorpay.api_key.required_if' => trans('The Razorpay API Key is required when Razorpay is enabled'),
             'gateway.Razorpay.secret_key.required_if' => trans('The Razorpay Secret Key is required when Razorpay is enabled'),
             'gateway.Razorpay.webhook_secret_key.required_if' => trans('The Razorpay Webhook Secret is required when Razorpay is enabled'),
+
+            'gateway.Paystack.api_key.required_if' => trans('The Paystack API Key is required when Paystack is enabled'),
+            'gateway.Paystack.secret_key.required_if' => trans('The Paystack Secret Key is required when Paystack is enabled'),
+            'gateway.Paystack.webhook_secret_key.required_if' => trans('The Paystack Webhook Secret is required when Paystack is enabled'),
+            'gateway.Paystack.currency_code.required_if' => trans('The Paystack Currency Code is required when Paystack is enabled'),
+
+            'gateway.Flutterwave.api_key.required_if' => trans('The Flutterwave API Key is required when Flutterwave is enabled'),
+            'gateway.Flutterwave.secret_key.required_if' => trans('The Flutterwave Secret Key is required when Flutterwave is enabled'),
+            'gateway.Flutterwave.webhook_secret_key.required_if' => trans('The Flutterwave Webhook Secret is required when Flutterwave is enabled'),
         ]);
         // $request->validate([
         //     'gateway'        => 'required|array',
@@ -424,6 +441,47 @@ class SystemSettingsController extends Controller {
                      "type" => "string"
                     ]
                 ], ["name"], ["data"]);
+
+                $env_update = [];
+                if($request->gateway['Stripe']['status'] == 1) {
+                    $env_update = changeEnv([
+                        'STRIPE_PUBLISHABLE_KEY' => trim($request->gateway['Stripe']['api_key']),
+                        'STRIPE_SECRET_KEY' => trim($request->gateway['Stripe']['secret_key']),
+                        'STRIPE_WEBHOOK_SECRET' => trim($request->gateway['Stripe']['webhook_secret_key']),
+                        'STRIPE_WEBHOOK_URL' => trim($request->gateway['Stripe']['webhook_url'] ?? "")
+                    ]);
+                } else if($request->gateway['Razorpay']['status'] == 1) { 
+                    $env_update = changeEnv([
+                        'RAZORPAY_API_KEY' => trim($request->gateway['Razorpay']['api_key']),
+                        'RAZORPAY_SECRET_KEY' => trim($request->gateway['Razorpay']['secret_key']),
+                        'RAZORPAY_WEBHOOK_SECRET' => trim($request->gateway['Razorpay']['webhook_secret_key']),
+                        'RAZORPAY_WEBHOOK_URL' => trim($request->gateway['Razorpay']['webhook_url'] ?? ""),
+                    ]);
+                } 
+                else if($request->gateway['Paystack']['status'] == 1) { 
+                    $env_update = changeEnv([
+                        'PAYSTACK_PUBLIC_KEY' => trim($request->gateway['Paystack']['api_key']),
+                        'PAYSTACK_SECRET_KEY' => trim($request->gateway['Paystack']['secret_key']),
+                        'PAYSTACK_WEBHOOK_SECRET' => trim($request->gateway['Paystack']['webhook_secret_key']),
+                        'PAYSTACK_WEBHOOK_URL' => trim($request->gateway['Paystack']['webhook_url'] ?? ""),
+                    ]);
+                } 
+                else if($request->gateway['Flutterwave']['status'] == 1) { 
+                    $env_update = changeEnv([
+                        'FLUTTERWAVE_PUBLISHABLE_KEY' => trim($request->gateway['Flutterwave']['api_key']),
+                        'FLUTTERWAVE_SECRET_KEY' => trim($request->gateway['Flutterwave']['secret_key']),
+                        'FLUTTERWAVE_WEBHOOK_SECRET' => trim($request->gateway['Flutterwave']['webhook_secret_key']),
+                        'FLUTTERWAVE_WEBHOOK_URL' => trim($request->gateway['Flutterwave']['webhook_url']),
+                    ]);
+                } 
+
+
+                if ($env_update) {
+                    $response = array(
+                        'error' => false,
+                        'message' => trans('data_update_successfully'),
+                    );
+                }
             }
             if (Auth::user()->hasRole('School Admin')) {
                 $this->schoolSetting->upsert([
@@ -583,6 +641,19 @@ class SystemSettingsController extends Controller {
             'firebase_service_file', 'firebase_project_id'
         );
         
+        if( $request->file('firebase_service_file') != null) {
+            $filePath = $request->file('firebase_service_file')->getRealPath();
+            $jsonContent = file_get_contents($filePath);
+            $configData = json_decode($jsonContent, true);
+
+            $requiredFields = ['project_id', 'private_key', 'client_email', 'client_id'];
+            foreach ($requiredFields as $field) {
+                if (!array_key_exists($field, $configData)) {
+                    ResponseService::errorResponse(trans('The file is not valid. :field is missing', ['field' => $field]));
+                }
+            }
+        }
+
         try {
             $data = array();
            
@@ -616,10 +687,10 @@ class SystemSettingsController extends Controller {
 
     public function emailTemplate()
     {
-        $name = 'email_template_school_registration';
-        $data = htmlspecialchars_decode($this->cache->getSystemSettings($name));
-        
-        return view('settings.email_template',compact('name','data'));
+        $data = htmlspecialchars_decode($this->cache->getSystemSettings());
+        $settings = $this->cache->getSystemSettings();
+     
+        return view('settings.email_template',compact('settings'));
     }
 
     public function refund_cancellation()
@@ -655,6 +726,54 @@ class SystemSettingsController extends Controller {
             ResponseService::successResponse("Data Stored Successfully");
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "System Settings Controller -> Third Party Api method");
+            ResponseService::errorResponse();
+        }
+    }
+
+    public function teacherPrivacyPolicy() {
+        ResponseService::noPermissionThenRedirect('privacy-policy');
+        $name = 'teacher_privacy_policy';
+        $data = htmlspecialchars_decode($this->cache->getSystemSettings($name));
+        return view('settings.teacher-privacy-policy', compact('name', 'data'));
+    }
+
+    public function teacherTermsConditions() {
+        ResponseService::noPermissionThenRedirect('terms-condition');
+        $name = 'teacher_terms_condition';
+        $data = htmlspecialchars_decode($this->cache->getSystemSettings($name));
+        return view('settings.teacher-terms-condition', compact('name', 'data'));
+    }
+
+    public function emailTemplateUpdate(Request $request)
+    {
+        ResponseService::noAnyPermissionThenRedirect(['system-setting-manage']);
+        $validator = Validator::make($request->all(), [
+            'email_template_school_registration' => 'nullable',
+            'school_reject_template' => 'nullable',
+        ]);
+        if ($validator->fails()) {
+            ResponseService::validationError($validator->errors()->first());
+        }
+
+        try {
+            $OtherSettingsData = array([
+                'name' => 'email_template_school_registration',
+                'data' => htmlspecialchars($request->email_template_school_registration),
+                'type' => 'string',
+            ],
+            [
+                'name' => 'school_reject_template',
+                'data' => htmlspecialchars($request->school_reject_template),
+                'type' => 'string'
+            ]);
+
+    
+            $this->systemSettings->upsert($OtherSettingsData, ["name"], ["data"]);
+            $this->cache->removeSystemCache(config('constants.CACHE.SYSTEM.SETTINGS'));
+            ResponseService::successResponse("Data Stored Successfully");
+            
+        } catch (Throwable $e) {
+            ResponseService::logErrorResponse($e, "School Settings Controller -> otherSystemSettings method");
             ResponseService::errorResponse();
         }
     }

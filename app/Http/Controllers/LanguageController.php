@@ -134,6 +134,7 @@ class LanguageController extends Controller
         $request->validate([
             'name' => 'required',
             'code' => 'required|unique:languages,code,' . $id,
+            'file' => 'required|mimes:json',
         ]);
 
         try {

@@ -23,7 +23,7 @@
                             <div class="row">
                                 <div class="form-group col-sm-12 col-md-4">
                                     <label for="">{{ __('class_section') }}</label>
-                                    <select name="" id="exam-class-section-id" required class="form-control">
+                                    <select name="class_section_id" id="class_section_id" required class="form-control">
                                         <option value="">-- {{ __('select_class_section') }} --</option>
                                         @foreach ($classes as $class)
                                             <option value="{{ $class->id }}" data-classId="{{ $class->class_id }}">{{ $class->full_name}}</option>
@@ -31,37 +31,15 @@
                                     </select>
                                 </div>
                                 <div class="form-group col-sm-12 col-md-4">
-                                    @if(isset($exams))
-                                        <label for="">{{ __('exam') }}</label>
-                                        <select required name="exam_id" id="exam-id" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
-                                            <option value="">{{ __('select') . ' ' . __('exam') }}</option>
-                                            <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
-                                            @foreach ($exams as $data)
-                                                <option value="{{ $data->id }}" data-classId="{{$data->class_id}}"> {{ $data->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    @else
-                                        <label for="">{{ __('exam') }}</label>
-                                        <select required name="exam_id" id="exam_id" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
-                                            <option value="">--- {{ __('no_data_found') }} ---</option>
-                                        </select>
-                                    @endif
+                                    <label for="">{{ __('exams') }}</label>
+                                    <select required name="exam_id" id="exam_id" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
+                                        <option value="">{{ __('select') . ' ' . __('exam') }}</option>
+                                    </select>
                                 </div>
                                 <div class="form-group col-sm-12 col-md-4">
                                     <label for="">{{ __('subject') }}</label>
-                                    <select name="class_subject_id" required id="class_subject_id" class="form-control">
-                                        <option value="">-- {{ __('Select Subject') }} --</option>
-                                        <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
-                                        @foreach ($exams as $exam)
-                                            @foreach($exam->timetable as $data)
-                                                @if ($data->class_subject)
-                                                    @foreach ($data->class_subject->subject_teacher as $subject)
-                                                        <option value="{{ $subject->class_subject_id }}" data-exam-id="{{ $data->exam_id }}" data-class-section-id="{{ $subject->class_section_id }}">{{ $subject->subject_with_name}}</option>
-                                                        
-                                                    @endforeach  
-                                            @endif
-                                            @endforeach
-                                        @endforeach
+                                    <select required name="class_subject_id" id="subject_id" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
+                                        <option value="">{{ __('select') . ' ' . __('subject')}}</option>
                                     </select>
                                 </div>
                                 <div class="form-group col-sm-12 col-md-12">

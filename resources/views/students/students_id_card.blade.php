@@ -74,7 +74,7 @@
             border-bottom-left-radius: 10px;
         }
         .card-body {
-            height: {{ $settings['page_height'] }};
+            height: {{ $settings['page_height'] ?? '100%' }};
         }
         .vertical-student-data {
             text-align: left;
@@ -252,7 +252,15 @@
                 </tr>
                 @endif
 
+                <?php $processedFieldsHorizontal = []; ?>
                 @foreach ($student->extra_student_details as $data)
+                    @php
+                        // Skip this iteration if we've already processed a field with this name
+                        $fieldName = $data->form_field->name;
+                        if (isset($processedFieldsHorizontal[$fieldName])) continue;
+                        $processedFieldsHorizontal[$fieldName] = true;
+                    @endphp
+                    
                     @if (in_array($data->form_field->type, ['text','number','radio','textarea']))
                         <tr>
                             <th class="vertical-student-data">{{ $data->form_field->name }} :</th>
@@ -261,7 +269,7 @@
                     @elseif($data->form_field->type == 'dropdown')
                         <tr>
                             <th class="vertical-student-data">{{ $data->form_field->name }} :</th>
-                            <td>{!! $data->form_field->default_values[$data->data] !!}</td>
+                            <td>{!! isset($data->form_field->default_values[$data->data]) ? $data->form_field->default_values[$data->data] : $data->data !!}</td>
                         </tr>
                     @elseif($data->form_field->type == 'checkbox')
                         <tr>
@@ -365,7 +373,15 @@
                 </tr>
                 @endif
 
+                <?php $processedFieldsVertical = []; ?>
                 @foreach ($student->extra_student_details as $data)
+                    @php
+                        // Skip this iteration if we've already processed a field with this name
+                        $fieldName = $data->form_field->name;
+                        if (isset($processedFieldsVertical[$fieldName])) continue;
+                        $processedFieldsVertical[$fieldName] = true;
+                    @endphp
+                    
                     @if (in_array($data->form_field->type, ['text','number','radio','textarea']))
                         <tr>
                             <th class="vertical-student-data">{{ $data->form_field->name }} :</th>
@@ -374,7 +390,7 @@
                     @elseif($data->form_field->type == 'dropdown')
                         <tr>
                             <th class="vertical-student-data">{{ $data->form_field->name }} :</th>
-                            <td>{!! $data->form_field->default_values[$data->data] !!}</td>
+                            <td>{!! isset($data->form_field->default_values[$data->data]) ? $data->form_field->default_values[$data->data] : $data->data !!}</td>
                         </tr>
                     @elseif($data->form_field->type == 'checkbox')
                         <tr>

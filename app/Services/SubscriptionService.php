@@ -20,8 +20,12 @@ use Carbon\Carbon;
 use DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Http;
 use Stripe\Stripe;
 use Stripe\Checkout\Session as StripeSession;
+use Unicodeveloper\Paystack\Facades\Paystack;
+use Illuminate\Support\Facades\Log;
+use App\Services\ResponseService;
 
 class SubscriptionService
 {
@@ -79,11 +83,22 @@ class SubscriptionService
 
         // If not current subscription plan
         if (!$isCurrentPlan) {
-            // $current_subscription = $this->subscription->default()->first();
+            // Attempt to get the current active subscription
             $current_subscription = $this->active_subscription($school_id);
-            $start_date = Carbon::parse($current_subscription->end_date)->addDays()->format('Y-m-d');
-            $end_date = Carbon::parse($start_date)->addDays(($package->days - 1))->format('Y-m-d');
+
+            // Check if a current subscription was found
+            if ($current_subscription) {
+                $start_date = Carbon::parse($current_subscription->end_date)->addDays()->format('Y-m-d');
+                $end_date = Carbon::parse($start_date)->addDays(($package->days - 1))->format('Y-m-d');
+            } else {
+                // Handle the case where there is no active subscription
+                Log::warning("No active subscription found for school_id: {$school_id}");
+                // You might want to set default dates or handle this case differently
+                $start_date = Carbon::now()->format('Y-m-d');
+                $end_date = Carbon::now()->addDays($package->days - 1)->format('Y-m-d');
+            }
         }
+
         $subscription_data = [
             'package_id'     => $package->id,
             'name'           => $package->name,
@@ -229,28 +244,30 @@ class SubscriptionService
     public function stripe_payment($subscriptionBill_id = null, $package_id = null, $type = null, $subscription_id = null, $isCurrentPlan = null)
     {
         try {
-
+            Log::info('Starting Stripe payment process');
+            
             $settings = app(CachingService::class)->getSystemSettings();
             $name = '';
             $amount = 0;
-
             if ($subscriptionBill_id) {
                 $subscriptionBill = $this->subscriptionBill->findById($subscriptionBill_id);
                 $name = $subscriptionBill->subscription->name;
                 $amount = $subscriptionBill->amount;
                 $package_id = -1;
             }
-            if ($package_id != -1) {
+
+            if ($package_id) {
                 $package = $this->package->findById($package_id);
                 $name = $package->name;
                 $amount = $package->charges;
                 $subscriptionBill_id = -1;
-            }
 
+            }
+        
             if ($type == null) {
                 $type = -1;
             }
-
+        
             if (!$subscription_id) {
                 $subscription_id = -1;
             }
@@ -258,46 +275,350 @@ class SubscriptionService
                 $isCurrentPlan = -1;
             }
 
-
-            // Access the model directly via data for super admin data, use the interface builder for school-specific data.
+            // Get payment configuration
             DB::setDefaultConnection('mysql');
-            $paymentConfiguration = PaymentConfiguration::where('school_id', null)->first();
-            if ($paymentConfiguration && !$paymentConfiguration->status) {
-                return redirect()->back()->with('error', trans('Current stripe payment not available'));
+            $paymentConfiguration = PaymentConfiguration::where('school_id', null)
+                ->where('payment_method', 'stripe')
+                ->where('status', 1)
+                ->first();
+
+            if (!$paymentConfiguration) {
+                Log::error('Stripe payment configuration not found or disabled');
+                return redirect()->back()->with('error', trans('Stripe payment is not available'));
             }
+
             $stripe_secret_key = $paymentConfiguration->secret_key ?? null;
             if (empty($stripe_secret_key)) {
+                Log::error('Stripe secret key is missing');
+                return redirect()->back()->with('error', trans('Stripe API key is not configured'));
+            }
+
+            $currency = $paymentConfiguration->currency_code;
+            Log::info('Processing payment with currency: ' . $currency);
+
+            // Validate minimum amount
+            $checkAmount = $this->checkMinimumAmount(strtoupper($currency), $amount);
+            $checkAmount = (float)$checkAmount;
+            $checkAmount = round($checkAmount, 2);
+
+            Log::info('Validated amount: ' . $checkAmount . ' (' . $currency . ')');
+            
+            // Stripe payment
+            $ch = curl_init();
+
+            curl_setopt_array($ch, [
+                CURLOPT_URL => 'https://api.stripe.com/v1/checkout/sessions',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $stripe_secret_key,
+                    'Content-Type: application/x-www-form-urlencoded',
+                    'Stripe-Version: 2022-11-15'
+                ],
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => http_build_query([
+                    'line_items[0][price_data][currency]' => strtolower($currency),
+                    'line_items[0][price_data][product_data][name]' => $name,
+                    'line_items[0][price_data][unit_amount]' => (int)($checkAmount * 100),
+                    'line_items[0][quantity]' => 1,
+                    'mode' => 'payment',
+                    'success_url' => url('subscriptions/payment/success') . '/{CHECKOUT_SESSION_ID}' . '/' . $subscriptionBill_id . '/' . $package_id . '/' . $type . '/' . $subscription_id . '/' . $isCurrentPlan,
+                    'cancel_url' => url('subscriptions/payment/cancel') . '/' . $subscriptionBill_id,
+                    'metadata[subscription_bill_id]' => $subscriptionBill_id,
+                    'metadata[package_id]' => $package_id, 
+                    'metadata[type]' => $type,
+                    'metadata[subscription_id]' => $subscription_id,
+                    'metadata[is_current_plan]' => $isCurrentPlan,
+                    'metadata[school_id]' => Auth::user()->school_id ?? null
+                ])
+            ]);
+
+            // Execute cURL request
+            $response = curl_exec($ch);
+
+            // Check for cURL errors
+            if (curl_errno($ch)) {
+                Log::error('Curl Error: ' . curl_error($ch));
+                curl_close($ch);
+                return redirect()->back()->with('error', trans('Connection error occurred'));
+            }
+
+            curl_close($ch);
+
+            $session = json_decode($response, true);
+            
+            if (isset($session['error'])) {
+                Log::error('Stripe API Error: ' . $session['error']['message']);
+                return redirect()->back()->with('error', trans('Stripe error: ') . $session['error']['message']);
+            }
+       
+            return redirect()->away($session['url'])->with('success', trans('The stripe payment has been successful'));
+
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe API Error: ' . $e->getMessage());
+            Log::error('Stripe API Error Code: ' . $e->getStripeCode());
+            Log::error('Stripe API Error Type: ' . $e->getStripeType());
+            return redirect()->back()->with('error', trans('Stripe payment error: ') . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('General Error in Stripe Payment: ' . $e->getMessage());
+            Log::error('Error trace: ' . $e->getTraceAsString());
+            return redirect()->back()->with('error', trans('server_not_responding'));
+        }
+    }
+
+    // Paystack Payment
+    public function paystack_payment($subscriptionBill_id = null, $package_id = null, $type = null, $subscription_id = null, $isCurrentPlan = null)
+    {
+        try {
+            $settings = app(CachingService::class)->getSystemSettings();
+            // dd($settings);
+            // die;
+            $name = '';
+            $amount = 0;
+        
+            if ($subscriptionBill_id) {
+                $subscriptionBill = $this->subscriptionBill->findById($subscriptionBill_id);
+                $name = $subscriptionBill->subscription->name;
+                $amount = $subscriptionBill->amount;
+            }
+
+            if ($package_id) {
+                $package = $this->package->findById($package_id);
+                $name = $package->name;
+                $amount = $package->charges;
+                $subscriptionBill_id = -1;
+
+            }
+        
+            if ($type == null) {
+                $type = -1;
+            }
+        
+            if (!$subscription_id) {
+                $subscription_id = -1;
+            }
+            if (!$isCurrentPlan) {
+                $isCurrentPlan = -1;
+            }
+        
+
+            // Set default values
+            $type = $type ?? -1;
+            $subscription_id = $subscription_id ?? -1; 
+            $isCurrentPlan = $isCurrentPlan ?? -1;
+
+            // Access the model directly via data for super admin data
+            DB::setDefaultConnection('mysql');
+            $paymentConfiguration = PaymentConfiguration::where('school_id', null)->where('payment_method', 'Paystack')->where('status', 1)->first();
+          
+            if ($paymentConfiguration && !$paymentConfiguration->status) {
+                return redirect()->back()->with('error', trans('Current Paystack payment not available'));
+            }
+
+            $paystack_secret_key = $paymentConfiguration->secret_key ?? null;
+            if (empty($paystack_secret_key)) {
                 return redirect()->back()->with('error', trans('No API key provided'));
             }
             $currency = $paymentConfiguration->currency_code;
 
+            \Log::info('Paystack currency: ' . $currency);
+
             $checkAmount = $this->checkMinimumAmount(strtoupper($currency), $amount);
             $checkAmount = (float)$checkAmount;
             $checkAmount = round($checkAmount, 2);
-            Stripe::setApiKey($stripe_secret_key);
-            $session = StripeSession::create([
-                'line_items'  => [
-                    [
-                        'price_data' => [
-                            'currency'     => $currency,
-                            'product_data' => [
-                                'name'   => $name,
-                                'images' => [$settings['horizontal_logo'] ?? 'logo.svg'],
-                            ],
-                            'unit_amount'  => $checkAmount * 100,
-                        ],
-                        'quantity'   => 1,
-                    ],
-                ],
-                'mode'        => 'payment',
-                'success_url' => url('subscriptions/payment/success') . '/{CHECKOUT_SESSION_ID}' . '/' . $subscriptionBill_id . '/' . $package_id . '/' . $type . '/' . $subscription_id . '/' . $isCurrentPlan,
-                'cancel_url'  => url('subscriptions/payment/cancel') . '/' . $subscriptionBill_id,
-            ]);
 
-            return redirect()->away($session->url);
-        } catch (\Throwable $th) {
-            DB::rollBack();
+            // Prepare request data
+            $data = [
+                'amount' => ($checkAmount * 100),
+                'email' => Auth::user()->email,
+                'currency' => $currency,
+                'redirect_url' => url('subscriptions/payment/success') . '/{CHECKOUT_SESSION_ID}' . '/' . $subscriptionBill_id . '/' . $package_id . '/' . $type . '/' . $subscription_id . '/' . $isCurrentPlan,
+                'callback_url' => url('subscriptions/history'),
+                'metadata' => [
+                    'package_id' => $package_id,
+                    'type' => $type, 
+                    'name' => 'package', // Using name instead of package_type to match webhook handling
+                    'subscription_id' => $subscription_id,
+                    'is_current_plan' => $isCurrentPlan,
+                    'school_id' => Auth::user()->school_id ?? null,
+                    'user_id'         => Auth::user()->id,
+                    'payment_transaction_id' => $paymentTransaction->id ?? null
+                ]
+            ];
+
+            // Make HTTP request to Paystack API
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $paystack_secret_key,
+                'Content-Type' => 'application/json',
+                'Cache-Control' => 'no-cache'
+            ])->post('https://api.paystack.co/transaction/initialize', $data);
+
+            \Log::info('Paystack response: ' . $response->body());
+
+            
+            // Check if request was successful
+            if (!$response->successful()) {
+                Log::error('Paystack API Error: ' . $response->body());
+                return redirect()->back()->with('error', trans('Paystack error: ') . $response->json()['message']);
+            }
+            
+            $result = $response->json();
+
+            // if ($result['status']) {
+            //     // update flutterwave payment transaction table
+            //     $paymentTransactionData = array(
+            //         'user_id'         => Auth::user()->id,
+            //         'amount'          => $amount,
+            //         'payment_gateway' => 'Paystack',
+            //         'order_id'        => $result['data']['reference'],
+            //         'payment_status'  => 'pending',
+            //         'school_id'       => Auth::user()->school_id,
+            //         'created_at'      => now(),
+            //         'updated_at'      => now(),
+            //     );
+
+            //     $this->paymentTransaction->create($paymentTransactionData);
+            // }
+
+            Log::info('Paystack payment initialized successfully: ' . $result['data']['reference']);
+            return redirect()->away($result['data']['authorization_url'])->with('success', trans('The paystack payment has been successful'));
+
+        } catch (\Exception $e) {
+            Log::error('General Error in Paystack Payment: ' . $e->getMessage());
+            Log::error('Error trace: ' . $e->getTraceAsString());
             return redirect()->back()->with('error', trans('server_not_responding'));
+        }
+    }
+
+    // Flutterwave Payment
+    public function flutterwave_payment($subscriptionBill_id = null, $package_id = null, $type = null, $subscription_id = null, $isCurrentPlan = null)
+    {
+        try {
+            DB::beginTransaction();
+            
+            $settings = app(CachingService::class)->getSystemSettings();
+            $name = '';
+            $amount = 0;
+        
+            if ($subscriptionBill_id) {
+                $subscriptionBill = $this->subscriptionBill->findById($subscriptionBill_id);
+                $name = $subscriptionBill->subscription->name;
+                $amount = $subscriptionBill->amount;
+                $package_id = -1;
+            }
+            
+            if ($package_id != -1) {
+                $package = $this->package->findById($package_id);
+                $name = $package->name;
+                $amount = $package->charges;
+                $subscriptionBill_id = -1;
+            }
+        
+            if ($type == null) {
+                $type = -1;
+            }
+        
+            if (!$subscription_id) {
+                $subscription_id = -1;
+            }
+            if (!$isCurrentPlan) {
+                $isCurrentPlan = -1;
+            }
+        
+            // Get payment configuration
+            DB::setDefaultConnection('mysql');
+            $paymentConfiguration = PaymentConfiguration::where('school_id', null)
+                ->where('status', 1)
+                ->first();
+                
+            \Log::info("Flutterwave Payment Configuration: " . json_encode($paymentConfiguration));
+            
+            if (!$paymentConfiguration || !$paymentConfiguration->status) {
+                throw new \Exception(trans('Current Flutterwave payment not available'));
+            }
+            
+            if (empty($paymentConfiguration->api_key)) {
+                throw new \Exception(trans('No API key provided for Flutterwave'));
+            }
+            
+            $currency = $paymentConfiguration->currency_code;
+            $checkAmount = (float)$this->checkMinimumAmount(strtoupper($currency), $amount);
+            
+            \Log::info("Flutterwave Check Amount: " . $checkAmount);
+        
+            // Create payment transaction record first
+            $paymentTransactionData = [
+                'user_id' => Auth::user()->id,
+                'amount' => $amount,
+                'payment_gateway' => 'Flutterwave',
+                'order_id' => 'tx_' . time(),
+                'payment_status' => 'pending',
+                'school_id' => Auth::user()->school_id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            $paymentTransaction = $this->paymentTransaction->create($paymentTransactionData);
+            
+            if (!$paymentTransaction) {
+                throw new \Exception(trans('Failed to create payment transaction'));
+            }
+            
+            // Update subscription bill with payment transaction ID
+            if ($subscriptionBill_id != -1) {
+                $this->subscriptionBill->update($subscriptionBill_id, [
+                    'payment_transaction_id' => $paymentTransaction->id
+                ]);
+            }
+        
+            // Prepare Flutterwave API request
+            $request = [
+                'tx_ref' => $paymentTransaction->order_id,
+                'amount' => $checkAmount,
+                'currency' => strtoupper($currency),
+                'email' => Auth::user()->email,
+                'order_id' => $subscriptionBill_id,
+                'order_name' => $name,
+                'customer' => [
+                    'email' => Auth::user()->email,
+                    'name' => Auth::user()->full_name,
+                    'mobile' => Auth::user()->mobile,
+                ],
+                'meta' => [
+                    'subscription_bill_id' => $subscriptionBill_id,
+                    'package_id' => $package_id,
+                    'type' => 'package',
+                    'subscription_id' => $subscription_id,
+                    'is_current_plan' => $isCurrentPlan,
+                    'school_id' => Auth::user()->school_id ?? null,
+                    'user_id' => Auth::user()->id,
+                    'payment_transaction_id' => $paymentTransaction->id
+                ],
+                'redirect_url' => url('subscriptions/history'),
+                'cancel_url' => url('subscriptions/payment/cancel') . '/' . $subscriptionBill_id,
+            ];
+                       
+            // Make request to Flutterwave API
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $paymentConfiguration->secret_key,
+                'Content-Type' => 'application/json',
+            ])->post('https://api.flutterwave.com/v3/payments', $request);
+
+            $res = $response->json();
+            \Log::info('Flutterwave response: ' . json_encode($res));
+            
+            if ($res['status'] !== 'success') {
+                ResponseService::errorResponse($res['message']);
+            }
+            
+            DB::commit();
+            return redirect()->away($res['data']['link'])->with('success', trans('The flutterwave payment has been successful'));
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Flutterwave Payment Error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            return redirect()->back()->with('error', $e->getMessage());
         }
     }
 
@@ -356,39 +677,165 @@ class SubscriptionService
 
             // Access the model directly via data for super admin data, use the interface builder for school-specific data.
             DB::setDefaultConnection('mysql');
-            $paymentConfiguration = PaymentConfiguration::where('school_id', null)->first();
+            $paymentConfiguration = PaymentConfiguration::where('school_id', null)->where('status', 1)->first();
+
             if ($paymentConfiguration && !$paymentConfiguration->status) {
-                return redirect()->back()->with('error', trans('Current stripe payment not available'));
+                return redirect()->back()->with('error', trans('Current payment method not available'));
             }
-            $stripe_secret_key = $paymentConfiguration->secret_key ?? null;
-            if (empty($stripe_secret_key)) {
-                return redirect()->back()->with('error', trans('No API key provided'));
-            }
-            $amount = number_format(ceil($addonSubscription->price * 100) / 100, 2);
-            $currency = $paymentConfiguration->currency_code;
 
-            $checkAmount = $this->checkMinimumAmount(strtoupper($currency), $amount);
+            // Stripe Payment
+            if($paymentConfiguration->payment_method == 'Stripe') {
+                $stripe_secret_key = $paymentConfiguration->secret_key ?? null;
 
-            Stripe::setApiKey($stripe_secret_key);
-            $session = StripeSession::create([
-                'line_items'  => [
-                    [
-                        'price_data' => [
-                            'currency'     => $currency,
-                            'product_data' => [
-                                'name'   => $addonSubscription->feature->name,
-                                'images' => [$settings['horizontal_logo'] ?? 'logo.svg'],
+                if (empty($stripe_secret_key)) {
+                    return redirect()->back()->with('error', trans('No API key provided'));
+                }
+
+                $amount = $addonSubscription->price;
+                $currency = $paymentConfiguration->currency_code;
+
+                // Validate minimum amount
+                $checkAmount = $this->checkMinimumAmount(strtoupper($currency), $amount);
+                $checkAmount = (float)$checkAmount;
+                $checkAmount = round($checkAmount, 2);
+
+                Log::info('Validated amount: ' . $checkAmount * 100);
+
+                Stripe::setApiKey($stripe_secret_key);
+                $session = StripeSession::create([
+                    'line_items'  => [
+                        [
+                            'price_data' => [
+                                'currency'     => $currency,
+                                'product_data' => [
+                                    'name'   => $addonSubscription->feature->name,
+                                    'images' => [$settings['horizontal_logo'] ?? 'logo.svg'],
+                                ],
+                                'unit_amount'  => $checkAmount * 100,
                             ],
-                            'unit_amount'  => $checkAmount * 100,
+                            'quantity'   => 1,
                         ],
-                        'quantity'   => 1,
                     ],
-                ],
-                'mode'        => 'payment',
-                'success_url' => url('addons/payment/success') . '/{CHECKOUT_SESSION_ID}' . '/' . $addonSubscriptionId,
-                'cancel_url'  => url('addons/payment/cancel'),
-            ]);
-            return redirect()->away($session->url);
+                    'mode'        => 'payment',
+                    'success_url' => url('addons/payment/success') . '/{CHECKOUT_SESSION_ID}' . '/' . $addonSubscriptionId,
+                    'cancel_url'  => url('addons/payment/cancel'),
+                ]);
+
+                return redirect()->away($session->url);
+
+            }
+
+            // Paystack Payment
+            if($paymentConfiguration->payment_method == 'Paystack') {
+
+                try {
+                    $paystack_secret_key = $paymentConfiguration->secret_key ?? null;
+                    $currency = $paymentConfiguration->currency_code;
+                    $checkAmount = $this->checkMinimumAmount(strtoupper($currency), $addonSubscription->price);
+                    $amount = (float) str_replace(',', '', number_format($checkAmount, 2));
+
+                    
+                    if (empty($paystack_secret_key)) {
+                        return redirect()->back()->with('error', trans('No API key provided'));
+                    }
+
+                    $data = [
+                        'amount' => $amount * 100,
+                        'email' => Auth::user()->email,
+                        'currency' => strtoupper($currency),
+                        'metadata' => [
+                            'type' => 'addon',
+                            'subscription_id' => $addonSubscription->subscription_id,
+                            'feature_id' => $addonSubscription->feature_id,
+                            'addon_subscription_id' => $addonSubscriptionId,
+                            'school_id' => Auth::user()->school_id,
+                            'user_id' => Auth::user()->id,
+                            'price' => $addonSubscription->price,
+                            'end_date' => $addonSubscription->end_date,
+                        ],
+                        'callback_url' => route('addons.payment.success_callback')
+                    ];
+
+                    $response = Http::withHeaders([
+                        'Authorization' => 'Bearer ' . $paystack_secret_key,
+                        'Content-Type' => 'application/json',
+                    ])->post('https://api.paystack.co/transaction/initialize', $data);
+                        
+                    $res = $response->json();
+
+                    \Log::info('Paystack response: ' . json_encode($res));
+                   
+                    if(!$res['status']) {
+                        return redirect()->back()->with('error', $res['message']);
+                    }
+
+                    if ($res['status']) {
+                        return redirect()->away($res['data']['authorization_url'])->with('reload', true)->with('success', trans('The paystack payment has been successful'));
+                    }
+
+                    return redirect('addons/plan')->back()->with('error', trans('Paystack payment failed'));
+
+                } catch (\Throwable $th) {
+                    \Log::error('Paystack Payment Error: ' . $th->getMessage());
+                    DB::rollBack();
+                    return redirect()->back()->with('error', trans('server_not_responding'));
+                }
+                
+            }
+
+            // Flutterwave Payment
+            if($paymentConfiguration->payment_method == 'Flutterwave') {
+                $flutterwave_secret_key = $paymentConfiguration->secret_key ?? null;
+                $currency = $paymentConfiguration->currency_code;
+                $amount = (float) number_format((float) ceil((float) $addonSubscription->price * 100) / 100, 2);
+
+                if (empty($flutterwave_secret_key)) {
+                    return redirect()->back()->with('error', trans('No API key provided'));
+                }
+
+                $data = [
+                    'tx_ref' => 'tx_' . time(),
+                    'amount' => $amount * 100,
+                    'currency' => strtoupper($currency),
+                    'email' => Auth::user()->email,
+                    'customer' => [
+                        'email' => Auth::user()->email,
+                        'name' => Auth::user()->full_name,
+                        'mobile' => Auth::user()->mobile,
+                    ],
+                    'meta' => [
+                        'type' => 'addon',
+                        'subscription_id' => $addonSubscription->subscription_id,
+                        'feature_id' => $addonSubscription->feature_id,
+                        'addon_subscription_id' => $addonSubscriptionId,
+                        'school_id' => Auth::user()->school_id,
+                        'user_id' => Auth::user()->id,
+                    ],
+                    'redirect_url' => url('addons/payment/success'),
+                ];
+
+
+                $response = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . $flutterwave_secret_key,
+                    'Content-Type' => 'application/json',
+                ])->post('https://api.flutterwave.com/v3/payments', $data);
+
+                $res = $response->json();
+                \Log::info('Flutterwave response: ' . json_encode($res));
+
+                if (!$response->successful()) {
+                    throw new \Exception('Flutterwave API request failed: ' . ($res['message'] ?? 'Unknown error'));
+                }
+
+                if(!$res['status']) {
+                    return redirect()->back()->with('error', $res['message']);
+                }
+
+                if ($res['status']) {
+                    return redirect()->away($res['data']['link'])->with('reload', true)->with('success', trans('The flutterwave payment has been successful'));
+                }
+
+            }
         } catch (\Throwable $th) {
             DB::rollBack();
             return redirect()->back()->with('error', trans('server_not_responding'));
@@ -397,8 +844,9 @@ class SubscriptionService
 
 
     /**
-     * @param $currency
-     * @param $amount
+     * @param string|float $currency
+     * @param string|float $amount
+     * @return float
      */
     public function checkMinimumAmount($currency, $amount)
     {
@@ -426,7 +874,8 @@ class SubscriptionService
             'RON' => 2.00,
             'SEK' => 3.00,
             'SGD' => 0.50,
-            'THB' => 10
+            'THB' => 10,
+            'ZAR' => 10,
         );
         if ($amount != 0) {
             if (array_key_exists($currency, $currencies)) {

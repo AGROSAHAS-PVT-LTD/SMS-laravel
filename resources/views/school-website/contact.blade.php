@@ -6,12 +6,13 @@
     <div class="breadcrumb">
         <div class="container">
             <div class="contentWrapper">
-                <span class="title"> Contact Us </span>
+                <span class="title"> {{ $schoolSettings['contact_us_heading'] ?? 'Contact Us' }} </span>
                 <span>
                     <a href="{{ url('/') }}" class="home">Home</a>
                     <span><i class="fa-solid fa-caret-right"></i></span>
-                    <span class="page">Contact Us</span>
+                    <span class="page"> {{ $schoolSettings['contact_us_heading'] ?? 'Contact Us' }} </span>
                 </span>
+                <span class="page"> {{ $schoolSettings['contact_us_description'] ?? 'Contact Us' }} </span>
             </div>
         </div>
     </div>
@@ -83,7 +84,8 @@
                         <div class="col-12">
                             <div class="mapWrapper commonMT">
                                 <div>
-                                    <iframe src="{{ $schoolSettings['google_map_link'] ?? '' }}" width="100%" height="100%" style="border:0;" allowfullscreen="true" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                                    {!! $schoolSettings['google_map_link'] ?? '' !!}
+                                    {{-- <iframe src="{{ $schoolSettings['google_map_link'] ?? '' }}" width="100%" height="100%" style="border:0;" allowfullscreen="true" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe> --}}
                                 </div>
                             </div>
                         </div>

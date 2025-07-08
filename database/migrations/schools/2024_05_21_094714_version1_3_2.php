@@ -1,9 +1,7 @@
 <?php
 
-use App\Models\Feature;
 use App\Models\School;
 use App\Models\SchoolSetting;
-use App\Models\SystemSetting;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -37,8 +35,6 @@ return new class extends Migration
             $table->integer('status')->default(1)->after('is_default');
         });
 
-        Feature::where('id',18)->update(['name' => 'ID Card - Certificate Generation']);
-        Feature::updateOrCreate(['id' => 19], ['name' => 'Website Management', 'is_default' => 0, 'status' => 1]);
         Schema::table('sliders', static function (Blueprint $table) {
             $table->integer('type')->default(1)->comment('1 => App, 2 => web, 3 => Both')->default(1)->after('link');
         });

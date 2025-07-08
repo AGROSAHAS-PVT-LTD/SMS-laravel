@@ -16,9 +16,16 @@
             <div class="col-md-12 grid-margin stretch-card">
                 <div class="card">
                     <div class="custom-card-body">
-                        <h4 class="card-title">
-                            {{ __('design') }} {{ __('certificate') . ' ' . __('template') }}
-                        </h4>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="d-flex justify-content-between">
+                                    <h4 class="card-title">
+                                        {{ __('design') }} {{ __('certificate') . ' ' . __('template') }}
+                                    </h4>
+                                    <a class="btn btn-sm btn-theme" href="{{ route('certificate-template.index') }}"> Back</a>
+                                </div>
+                            </div>
+                        </div>
                         <div class="row">
                             <div class="form-group col-sm-12 col-md-12">
                                 <div class="d-flex">

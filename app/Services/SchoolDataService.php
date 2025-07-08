@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Session;
 
 class SchoolDataService {
 
@@ -34,13 +35,13 @@ class SchoolDataService {
         $school->support_email = $schoolData->support_email;
         $school->tagline = $schoolData->tagline;
         $school->logo = $schoolData->logo;
-        $school->status = $schoolData->status;
+        $school->status = $schoolData->type == "demo" ? 1 : $schoolData->status;
         $school->domain = $schoolData->domain;
         $school->database_name = $schoolData->database_name;
         $school->code = $schoolData->code;
         $school->created_at = $schoolData->created_at;
         $school->updated_at = $schoolData->updated_at;
-        // $school->save();
+        $school->save();
 
         $mainUser = DB::connection('mysql')->table('users')->where('id',$schoolData->admin_id)->first();        
 
@@ -52,15 +53,16 @@ class SchoolDataService {
             'email' => $mainUser->email,
             'password' => $mainUser->password,
             'school_id' => $mainUser->school_id,
+            'email_verified_at' => $schoolData->type == "demo" ? Carbon::now() : null,
             'created_at' => $mainUser->created_at,
             'updated_at' => $mainUser->updated_at,
         ];
 
-        // DB::connection('school')->table('users')->insert($userRow);
+        DB::connection('school')->table('users')->insert($userRow);
 
         $school = School::find($schoolData->id);
         $school->admin_id = $schoolData->admin_id;
-        // $school->save();
+        $school->save();
 
 
 
@@ -197,10 +199,11 @@ class SchoolDataService {
                 'school_id' => $schoolData->id
             ],
 
+
         );
         SchoolSetting::upsert($schoolSettingData, ["name", "school_id"], ["data", "type"]);
     }
-
+    
     public function createPreSetupRole($school) {
 
         DB::setDefaultConnection('school');
@@ -217,28 +220,54 @@ class SchoolDataService {
         $user = $schoolAdminUser->setConnection('school');
         $user->assignRole('School Admin');
 
-        Role::updateOrCreate(['name' => 'Guardian', 'school_id' => $school->id, 'custom_role' => 0, 'editable' => 0]);
-        Role::updateOrCreate(['name' => 'Student', 'school_id' => $school->id, 'custom_role' => 0, 'editable' => 0]);
+        $this->defaultRoles($school);
 
         // Create teacher role
         $this->createTeacherRole($school);
+    }
+
+    public function defaultRoles($school)
+    {
+        Role::updateOrCreate(['name' => 'Guardian', 'school_id' => $school->id, 'custom_role' => 0, 'editable' => 0]);
+        Role::updateOrCreate(['name' => 'Student', 'school_id' => $school->id, 'custom_role' => 0, 'editable' => 0]);
     }
 
     public function createDatabaseMigration($schoolData)
     {
         $school_name = str_replace('.','_',$schoolData->name);
         // $database_name = 'eschool_saas_'.$schoolData->id.'_'.strtolower(strtok($school_name," "));
-        $database_name = "mydigiph_school";    
-        // $query = "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME =  ?";
+        
+        // Check if $school_name is an array and convert it to a string
+        if (is_array($school_name)) {
+            $school_name = implode(" ", $school_name); // Join the array elements into a string
+        }
+        
+        // Now apply strtok and strtolower
+        $database_name = 'eschool_saas_'.$schoolData->id.'_'.strtolower(strtok($school_name, " "));
 
-        // $db = DB::select($query, [$database_name]);
-        // if (empty($db)) {
-        //     DB::statement("CREATE DATABASE {$database_name}");
-        // }
+            
+        $query = "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME =  ?";
+
+        $db = DB::select($query, [$database_name]);
+        
+        if (empty($db)) {
+            DB::statement("CREATE DATABASE {$database_name}");
+        }
 
         $schoolData->database_name = $database_name;
         $schoolData->save();
-        Artisan::call('migrate:school');
+        
+        // Artisan::call('migrate:school');
+        Config::set('database.connections.school.database', $schoolData->database_name);
+        DB::purge('school');
+        DB::connection('school')->reconnect();
+        DB::setDefaultConnection('school');
+        Artisan::call('migrate', [
+            '--database' => 'school',
+            '--path' => 'database/migrations/schools',
+            '--force' => true,
+        ]);
+        
     }
 
     public function createPermissions() {
@@ -269,7 +298,7 @@ class SchoolDataService {
             ...self::permission('package'),
             ...self::permission('addons'),
             ...self::permission('guidance'),
-
+            ...self::permission('assign-elective-subject'),
 
             ...self::permission('assignment'),
             ['name' => 'assignment-submission'],
@@ -345,8 +374,14 @@ class SchoolDataService {
 
             ['name' => 'email-template' ],
             ['name' => 'database-backup' ],
+            ['name' => 'view-exam-marks'],
 
-
+            ['name' => 'contact-inquiry-list'],
+            
+            // Reports
+            ['name' => 'report-list'],
+            ['name' => 'reports-student'],
+            ['name' => 'reports-exam'],
             
 
         ];
@@ -586,8 +621,19 @@ class SchoolDataService {
 
             'email-template',
             'database-backup',
+            'view-exam-marks',
+            'assign-elective-subject-list',
+            'assign-elective-subject-create',
+            'assign-elective-subject-edit',
+            'assign-elective-subject-delete',
+
+            'report-list',
+            'reports-student',
+            'reports-exam',
+            'contact-inquiry-list',
 
         ];
+        
         $role->syncPermissions($SchoolAdminHasAccessTo);
     }
 
@@ -631,7 +677,33 @@ class SchoolDataService {
             'leave-create',
             'leave-edit',
             'leave-delete',
+
+            'attendance-list',
         ];
         $teacher_role->syncPermissions($TeacherHasAccessTo);
     }
+    
+    public static  function switchToMainDatabase()
+    {
+        DB::setDefaultConnection('mysql');
+        Session::forget('school_database_name');
+        Session::flush();
+        Session::put('school_database_name', null);
+
+    }
+
+    public static function switchToSchoolDatabase($school_id)
+    {
+        $school_database = School::where('id',$school_id)->pluck('database_name')->first();
+
+        DB::setDefaultConnection('school');
+        Config::set('database.connections.school.database', $school_database);
+        DB::purge('school');
+        DB::connection('school')->reconnect();
+        DB::setDefaultConnection('school');
+
+        Session::put('school_database_name', $school_database);
+        
+    }
+    
 }

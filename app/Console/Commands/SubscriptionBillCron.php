@@ -78,8 +78,17 @@ class SubscriptionBillCron extends Command
             AddonSubscription::where('school_id',$bill->school_id)->where('start_date','>',$today_date)->delete();
 
             $school_settings = SchoolSetting::where('school_id',$bill->school_id)->where('name','auto_renewal_plan')->first();
-            $school_settings->data = 0;
-            $school_settings->save();
+            
+            if ($school_settings) {
+                $school_settings->data = 0;
+                $school_settings->save();
+            } else {
+                SchoolSetting::create([
+                    'school_id' => $bill->school_id,
+                    'name' => 'auto_renewal_plan',
+                    'data' => 0
+                ]);
+            }
 
             // Remove cache
             $this->cache->removeSchoolCache(config('constants.CACHE.SCHOOL.FEATURES'),$bill->school_id);

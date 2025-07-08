@@ -23,15 +23,19 @@
                         <div class="form-group">
                             <form class="edit-form" data-success-function="formSuccessFunction" action="{{ route('exam.timetable.update',$exam->id) }}" data-pre-submit-function="classValidation" method="POST">
                                 <div class="row">
-                                    <div class="form-group col-md-6">
+                                    <div class="form-group col-md-4">
                                         <label>{{ __('exam') }} </label>
                                         {!! Form::hidden('semester_id', $exam->semester_id ?? null) !!}
                                         {!! Form::hidden('session_year_id', $exam->session_year_id) !!}
                                         {!! Form::text('', $exam->name, ['readonly' => true ,'class' => 'form-control']) !!}
                                     </div>
-                                    <div class="form-group col-md-6">
+                                    <div class="form-group col-md-4">
                                         <label>{{ __('Class') }} </label>
                                         {!! Form::text('', $exam->class->full_name, ['readonly' => true ,'class' => 'form-control']) !!}
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label>{{ __('Exam Result Submission Date') }} <span class="text-danger">*</span></label>
+                                            {!! Form::text('last_result_submission_date', $last_result_submission_date, ['class' => 'timetable-date form-control', 'placeholder' => __('Exam Result Submission Date'), 'required',]) !!}
                                     </div>
                                 </div>
 

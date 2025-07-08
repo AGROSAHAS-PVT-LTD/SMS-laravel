@@ -78,7 +78,7 @@
                                             </div>
                                             <div class="wrapper">
                                                 @if ($subscription)
-                                                    @if ($paymentConfiguration && $subscription->package_type == 0)
+                                                    @if ($paymentConfiguration && $paymentConfiguration->payment_method == 'Razorpay' &&  $subscription->package_type == 0)
                                                         <form action="{{ url('subscriptions/razorpay') }}" class="razorpay-form" method="POST">
                                                             @csrf
                                                             <input type="hidden" name="package_id" class="package_id" value="">
@@ -99,8 +99,34 @@
 
                                                             <button class="btn btn-outline-success w-100" id="razorpay-button-{{ $addon->id }}">{{ __('add') }}</button>
                                                         </form>
+                                                    @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Stripe' && $subscription->package_type == 0)
+                                                        <form class="stripe-form" method="POST">
+                                                            @csrf
+                                                            <input type="hidden" name="addon_id" class="addon_id" value="{{ $addon->id }}">
+                                                            <input type="hidden" name="subscription_id" class="subscription_id" value="{{ $subscription->id }}">
+                                                            <input type="hidden" name="feature_id" class="feature_id-{{ $addon->id }}" value="{{ $addon->feature_id }}">
+                                                            <input type="hidden" name="amount" class="bill_amount-{{ $addon->id }}" value="{{ $addon->price }}">
+                                                            <button data-id="{{ $addon->id }}" data-type="{{ $subscription->package_type }}" class="btn btn-outline-success add-addon btn-block">{{ __('add') }}</button>
+                                                        </form>
+                                                    @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Flutterwave' && $subscription->package_type == 0)
+                                                        <form class="flutterwave-form" method="POST">
+                                                            @csrf
+                                                            <input type="hidden" name="addon_id" class="addon_id" value="{{ $addon->id }}">
+                                                            <input type="hidden" name="subscription_id" class="subscription_id" value="{{ $subscription->id }}">
+                                                            <input type="hidden" name="feature_id" class="feature_id-{{ $addon->id }}" value="{{ $addon->feature_id }}">
+                                                            <input type="hidden" name="amount" class="bill_amount-{{ $addon->id }}" value="{{ $addon->price }}">
+                                                            <button data-id="{{ $addon->id }}" data-payment-method="flutterwave" data-type="{{ $subscription->package_type }}" class="btn btn-outline-success add-addon btn-block">{{ __('add') }}</button>
+                                                        </form>
+                                                    @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Paystack' && $subscription->package_type == 0)
+                                                        <form class="paystack-form" method="POST">
+                                                            @csrf
+                                                            <input type="hidden" name="addon_id" class="addon_id" value="{{ $addon->id }}">
+                                                            <input type="hidden" name="subscription_id" class="subscription_id" value="{{ $subscription->id }}">
+                                                            <input type="hidden" name="feature_id" class="feature_id-{{ $addon->id }}" value="{{ $addon->feature_id }}">
+                                                            <input type="hidden" name="amount" class="bill_amount-{{ $addon->id }}" value="{{ $addon->price }}">
+                                                            <button data-id="{{ $addon->id }}" data-type="{{ $subscription->package_type }}" class="btn btn-outline-success add-addon btn-block">{{ __('add') }}</button>
+                                                        </form>
                                                     @else
-                                                        
                                                         <button data-id="{{ $addon->id }}" data-type="{{ $subscription->package_type }}" class="btn btn-outline-success add-addon btn-block">{{ __('add') }}</button>
                                                     @endif
                                                 @endif
@@ -135,9 +161,9 @@
 
                 $.ajax({
                     type: "post",
-                    url: baseUrl + '/subscriptions/create/order-id',
+                    url: baseUrl + '/subscriptions/create/razorpay/order-id',
                     data: {
-                        amount : $('.bill_amount-{{ $addon->id }}').val(),
+                        amount : $('.bill_amount-{{ $addon->id }}').val(), // Amount is in currency subunits. Default currency is INR. Hence, 100 refers to 1 INR
                         currency : "{{ $system_settings['currency_code'] ?? 'INR' }}",
 
                         type : 'addon',
@@ -155,7 +181,7 @@
                             paymentTransactionId = response.data.paymentTransaction.id;
                             var options = {
                                 "key": "{{ $paymentConfiguration->api_key ?? '' }}", // Enter the Key ID generated from the Dashboard
-                                "amount": $('.bill_amount').val() * 100, // Amount is in currency subunits. Default currency is INR. Hence, 100 refers to 1 INR
+                                "amount": $('.bill_amount-{{ $addon->id }}').val() * 100, // Amount is in currency subunits. Default currency is INR. Hence, 100 refers to 1 INR
                                 "currency": "{{ $system_settings['currency_code'] ?? 'INR' }}",
                                 "name": "{{ $system_settings['system_name'] ?? 'eSchool-Saas' }}",
                                 "description": "Razorpay",

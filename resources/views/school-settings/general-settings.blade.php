@@ -16,7 +16,7 @@
             <div class="col-lg-12">
                 <div class="card">
                     <div class="card-body">
-                        <form class="create-form-without-reset" action="{{ route('school-settings.store') }}" method="POST" novalidate="novalidate" enctype="multipart/form-data">
+                        <form class="create-form-without-reset" action="{{ route('school-settings.store') }}" method="POST" novalidate="novalidate" enctype="multipart/form-data" data-success-function="formSuccessFunction">
                             @csrf
                             <div class="border border-secondary rounded-lg mb-2">
                                 <div class="row my-4 mx-1">
@@ -68,69 +68,116 @@
 
                                 <div class="row my-4 mx-1">
                                     <div class="form-group col-md-6 col-lg-6 col-xl-4 col-sm-12">
-                                        <label for="favicon">{{ __('favicon') }} <span class="text-danger">*</span></label>
-                                        <input type="file" name="favicon" class="file-upload-default"/>
+                                        <label for="favicon">{{ __('favicon') }} <span class="text-danger">*</span> <small class="text-muted">(32x32 pixels)</small></label>
+                                        <input type="file" name="favicon" id="favicon-input" class="file-upload-default" accept="image/*"/>
                                         <div class="input-group col-xs-12">
                                             <input type="text" id="favicon" class="form-control file-upload-info" disabled="" placeholder="{{ __('favicon') }}"/>
                                             <span class="input-group-append">
-                                            <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
-                                        </span>
-                                            <div class="col-md-12 mt-2">
-                                                <img height="50px" src='{{ $settings['favicon'] ??  '' }}' alt="">
-                                            </div>
+                                                <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
+                                            </span>
+                                        </div>
+                                        <div class="col-md-12 mt-2">
+                                            <img id="favicon-preview" height="32px" width="32px"
+                                                 src='{{ !empty($settings['favicon']) ? url($settings['favicon']) : asset('assets/no_image_available.jpg') }}' 
+                                                 alt="Favicon" class="">
                                         </div>
                                     </div>
+                                    
                                     <div class="form-group col-md-6 col-lg-6 col-xl-4 col-sm-12">
-                                        <label for="horizontal_logo">{{ __('horizontal_logo') }} <span class="text-danger">*</span></label>
-                                        <input type="file" name="horizontal_logo" class="file-upload-default"/>
+                                        <label for="horizontal_logo">{{ __('horizontal_logo') }} <span class="text-danger">*</span> <small class="text-muted">(250x50 pixels)</small></label>
+                                        <input type="file" name="horizontal_logo" id="horizontal-logo-input" class="file-upload-default" accept="image/*"/>
                                         <div class="input-group col-xs-12">
                                             <input type="text" id="horizontal_logo" class="form-control file-upload-info" disabled="" placeholder="{{ __('horizontal_logo') }}"/>
                                             <span class="input-group-append">
-                                            <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
-                                        </span>
-                                            <div class="col-md-12 mt-2">
-                                                <img height="50px" src='{{ $settings['horizontal_logo'] ?? '' }}' alt="">
-                                            </div>
+                                                <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
+                                            </span>
+                                        </div>
+                                        <div class="col-md-12 mt-2">
+                                            <img id="horizontal-logo-preview" height="60px" width="250px"
+                                                 src='{{ !empty($settings['horizontal_logo']) ? url($settings['horizontal_logo']) : asset('assets/no_image_available.jpg') }}' 
+                                                 alt="Horizontal Logo" class="">
                                         </div>
                                     </div>
+                                    
                                     <div class="form-group col-md-6 col-lg-6 col-xl-4 col-sm-12">
-                                        <label for="vertical_logo">{{ __('vertical_logo') }} <span class="text-danger">*</span></label>
-                                        <input type="file" name="vertical_logo" class="file-upload-default"/>
+                                        <label for="vertical_logo">{{ __('vertical_logo') }} <span class="text-danger">*</span> <small class="text-muted">(100x100 pixels)</small></label>
+                                        <input type="file" name="vertical_logo" id="vertical-logo-input" class="file-upload-default" accept="image/*"/>
                                         <div class="input-group col-xs-12">
                                             <input type="text" class="form-control file-upload-info" id="vertical_logo" disabled="" placeholder="{{ __('vertical_logo') }}"/>
                                             <span class="input-group-append">
-                                        <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
-                                        </span>
-                                            <div class="col-md-12 mt-2">
-                                                <img height="50px" src='{{ $settings['vertical_logo'] ?? '' }}' alt="">
-                                            </div>
+                                                <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
+                                            </span>
+                                        </div>
+                                        <div class="col-md-12 mt-2">
+                                            <img id="vertical-logo-preview" height="100px" width="100px"
+                                                 src='{{ !empty($settings['vertical_logo']) ? url($settings['vertical_logo']) : asset('assets/no_image_available.jpg') }}' 
+                                                 alt="Vertical Logo" class="">
                                         </div>
                                     </div>
 
                                     <div class="form-group col-md-12 col-sm-12 mt-3">
                                         <label for="school_google_map_link">{{ __('google_map_link')}} <span class="text-danger">*</span><span class="text-small text-info">{{ __('convert_into_embed_url') }}</span></label>
-                                        <div class="input-group mb-3">
-                                            <input type="text" class="form-control" required name="google_map_link" placeholder="{{ __('google_map_link') }}" value="{{ $settings['google_map_link'] ?? '' }}">
+                                        <div class="input-group mb-3 w-100 d-flex flex-column">
+                                            <input type="text" class="form-control w-100" required name="google_map_link" placeholder="{{ __('google_map_link') }}" value="{{ $settings['google_map_link'] ?? '' }}">
                                         </div>
                                     </div>
-
                                     <div class="form-group col-md-4 col-sm-12">
-                                        <label for="school_domain">{{ __('domain')}}</label>
+                                        <label for="fees_remainder_duration">{{ __('fees_remainder_duration')}}  <span class="text-danger">*</span> <span class="text-small text-info">{{ __('reminder_days_before_due') }}</span></label>
+                                        <div class="input-group mb-3 d-flex flex-column">
+                                            <input type="number" class="form-control w-100" required name="fees_remainder_duration" placeholder="{{ __('fees_remainder_duration') }}" value="{{ $settings['fees_remainder_duration'] ?? '' }}">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="border border-secondary rounded-lg my-4 mx-1">
+                                <div class="col-md-12 mt-3"><h4>{{__("Domain Settings")}}</h4></div>
+                                <div class="col-12 mb-3">
+                                    <hr class="mt-0">
+                                </div> 
+                                <div class="row my-4 mx-1">  
+                                    <div class="form-group col-sm-12 col-md-4">
+                                        <label>{{ __('domain').' '. __('type') }} <span class="text-danger">*</span></label><br>
+                                        <div class="d-flex">
+                                            <div class="form-check form-check-inline">
+                                                <label class="form-check-label">
+                                                    {!! Form::radio('domain_type', 'default', false, ['class' => 'default' , ($domain_type ==  "default") ? "checked" : "" ]) !!}{{ __('default') }}
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <label class="form-check-label">
+                                                    {!! Form::radio('domain_type', 'custom', false, ['class' => 'custom', ($domain_type ==  "custom") ? "checked" : "" ]) !!}{{ __('custom') }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-sm-12 col-md-4 defaultDomain" style="display: none">
+                                        <label for="school_domain">{{ __('default_domain')}}</label>
                                         <div class="input-group mb-3">
-                                                <input type="text" class="form-control domain-pattern" name="domain" placeholder="{{ __('domain') }}" value="{{ $settings['domain'] ?? '' }}">
+                                                <input type="text" class="form-control domain-pattern" name="domain" placeholder="{{ __('domain') }}" aria-label="Recipient's username" aria-describedby="basic-addon2" disabled value="{{ ($domain_type ==  "default" && $settings['domain']) ? $settings['domain'] : "" }}">
                                             <div class="input-group-append">
                                                 <span class="input-group-text text-body" id="basic-addon2">.{{ $baseUrlWithoutScheme }}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    
+                                    <div class="form-group col-sm-12 col-md-4 customDomain" style="display: none">
+                                        <label for="school_domain">{{ __('custom_domain')}}</label>
+                                        <div class="input-group mb-3">
+                                                <input type="text" class="form-control domain-pattern" name="domain" placeholder="{{ __('domain') }}" aria-label="Recipient's username" aria-describedby="basic-addon2" disabled value="{{ ($domain_type ==  "custom" && $settings['domain']) ? $settings['domain'] : "" }}">
+                                        </div>
+                                    </div>
+                                    @if (!env('DEMO_MODE'))
+                                        <div class="form-group col-sm-12 col-md-4 serverinfo" style="display: none">
+                                            <label for="serinfo">{{ __('server_info')}}</label>
+                                            <div class="input-group mb-3">
+                                                    <input type="text" class="form-control" name="server_ip" placeholder="{{ __('domain') }}" aria-describedby="basic-addon2" disabled value="{{ $_SERVER['SERVER_ADDR'] ?? '127.0.0.1'; }}">
+                                            </div>
+                                        </div>
+                                    @endif
+                                    <div class="mx-4 text-justify text-uppercase">
+                                        <small
+                                            class="text-danger">{{ __('Note : If You are using Custom Domain then you have add a dns entry with pointing the server ip address.') }}</small>
+                                    </div>
                                 </div>
-
-                                {{-- <div class="form-group col-sm-12 col-md-2">
-                                    <a href="{{ url('school-settings/backup-database') }}" class="btn btn-theme">{{ __('create_database_backup') }}</a>
-                                </div> --}}
-
-
                             </div>
                             <div class="border border-secondary rounded-lg my-4 mx-1">
                                 <div class="col-md-12 mt-3"><h4>{{__("Roll Number Settings")}}</h4></div>
@@ -180,4 +227,58 @@
             </div>
         </div>
     </div>
+@endsection
+@section('script')
+<script>
+    function formSuccessFunction(response) {
+        setTimeout(() => {
+            window.location.reload();
+        }, 4000);
+    }
+
+    $(document).ready(function () {
+        // Domain settings toggle functionality
+        function toggleFields() {
+            if ($('.default').is(':checked')) {
+                $('.defaultDomain').show().find('input').prop('disabled', false);
+                $('.customDomain').hide().find('input').prop('disabled', true);
+                $('.serverinfo').hide().find('input');
+            } else if ($('.custom').is(':checked')) {
+                $('.customDomain').show().find('input').prop('disabled', false);
+                $('.serverinfo').show().find('input');
+                $('.defaultDomain').hide().find('input').prop('disabled', true);
+            }
+        }  
+        $("input[name='domain_type']").on('change', toggleFields);
+        toggleFields();
+
+        // Image preview functionality
+        $('#favicon-input').on('change', function() {
+            previewImage(this, '#favicon-preview');
+        });
+
+        $('#horizontal-logo-input').on('change', function() {
+            previewImage(this, '#horizontal-logo-preview');
+        });
+
+        $('#vertical-logo-input').on('change', function() {
+            previewImage(this, '#vertical-logo-preview');
+        });
+
+        function previewImage(input, previewSelector) {
+            if (input.files && input.files[0]) {
+                var file = input.files[0];
+                
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    $(previewSelector).attr('src', e.target.result);
+                    
+                    // Update the file name in the input field
+                    $(input).closest('.form-group').find('.file-upload-info').val(file.name);
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+    });
+</script>
 @endsection

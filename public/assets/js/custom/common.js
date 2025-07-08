@@ -147,6 +147,9 @@ $('.online-admission-form,.create-form-with-captcha').on('submit', function (e) 
             }
 
             formElement[0].reset();
+            $('#fileUpload').val('');
+            $('.file-select span').text('No File Selected.');
+            
             try {
                 grecaptcha.reset();
             } catch (error) {
@@ -166,6 +169,28 @@ $('.school-registration').on('submit', function (e) {
     let submitButtonElement = $(this).find(':submit');
     let url = $(this).attr('action');    
     let submitButtonText = submitButtonElement.val();
+    let isValid = true; 
+    
+        $(".checkbox-group").each(function () {
+            let checkboxes = $(this).find("input[type='checkbox']");
+            let errorMessage = $(this).next(".checkbox-error");
+
+            if (checkboxes.length > 0 && errorMessage.length > 0) {
+                let isChecked = checkboxes.is(":checked");
+
+                if (!isChecked) {
+                    isValid = false;
+                    errorMessage.removeClass("d-none");
+                } else {
+                    errorMessage.addClass("d-none");
+                }
+            }
+        });
+        
+    if (!isValid) {
+        return;
+    }
+  
     submitButtonElement.val('Please Wait...').attr('disabled', true);
     showLoading();
 
@@ -179,6 +204,9 @@ $('.school-registration').on('submit', function (e) {
         let customSuccessFunction = $(this).data('success-function');
         // noinspection JSUnusedLocalSymbols
         function successCallback(response) {
+            
+            // Reset the form
+            formReset[0].reset();
 
             if (response.warning) {
                 $('#staticBackdrop').modal('hide');
@@ -576,7 +604,7 @@ $(document).on('click', '.select-plan', function (e) {
     let type = $(this).data('type');
     let iscurrentplan = $(this).data('iscurrentplan');
     
-    let link = baseUrl + '/school-terms-condition';
+    let link = baseUrl + '/page/school-terms-conditions';
 
     Swal.fire({
         title: window.trans["Are you sure"],
@@ -720,7 +748,7 @@ $(document).on('click', '.start-immediate-plan', function (e) {
     e.preventDefault();
     let id = $(this).data('id');
     let type = $(this).data('type');
-    let link = baseUrl + '/school-terms-condition';
+    let link = baseUrl + '/page/school-terms-conditions';
     Swal.fire({
         title: window.trans["Are you sure"],
         text: window.trans["start_immediate_this_plan"],
@@ -963,10 +991,23 @@ $(document).on('click', '.create-backup', function (e) {
             let data = null;
 
             function successCallback(response) {
+                // download the file
+                if(response.data) {
+                    
+                    const aTag = document.createElement('a');
+                    aTag.href = response.data;
+                    // a.download = fileName;
+                    document.body.appendChild(aTag);
+                    aTag.click();
+                    aTag.remove();
+
+                    window.URL.revokeObjectURL(objectUrl); // Clean up the object URL after download
+                }
+                
                 $('#table_list').bootstrapTable('refresh');
                 showSuccessToast(response.message);
-            }
 
+            }
             function errorCallback(response) {
                 showErrorToast(response.message);
             }
@@ -974,4 +1015,20 @@ $(document).on('click', '.create-backup', function (e) {
             ajaxRequest('GET', url, data, null, successCallback, errorCallback);
         }
     })
+})
+
+// send notification check box
+$(document).on('click', '#send_notification', function (e) {
+    let send_notification = $('#send_notification').is(':checked');
+    
+    if(send_notification) {
+        $('#send_notification').val(1);
+    } else {
+        $('#send_notification').val(0);
+    }
+})
+
+// reset multiple select
+$(document).on('click', '[type="reset"]', function (e) {
+    $('.select2-dropdown').val(null).trigger('change');
 })

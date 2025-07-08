@@ -33,7 +33,9 @@ function send_notification($user, $title, $body, $type, $customData = []) {
                 "android" => [
                     "notification"=> [
                         'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                        "sound" => "default"  // This is for Android sound
                     ],
+                    "priority" => "high"
                    
                 ],
                 "apns" => [
@@ -47,7 +49,10 @@ function send_notification($user, $title, $body, $type, $customData = []) {
                                 "body" => $body,
                             ],
                             "type" => $type,
-                            ...$customData
+                            ...$customData,
+                            "sound" => "default",  // This is for iOS sound
+                            "mutable-content" => 1, 
+                            "content-available" => 1
                         ]
                     ]
                 ]

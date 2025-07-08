@@ -8,6 +8,9 @@
     <title>Salary Slip || {{ $schoolSetting['school_name'] }}</title>
 
     <style>
+        * {
+            font-family: 'DejaVu Sans', sans-serif;
+        }
         .full-width {
             width: 100%;
         }

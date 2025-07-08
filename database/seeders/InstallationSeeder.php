@@ -69,7 +69,10 @@ class InstallationSeeder extends Seeder {
             ['name' => 'web-settings'],
             ['name' => 'email-template'],            
             ['name' => 'custom-school-email'],
-
+            ['name' => 'database-backup'],
+            ...self::permission('school-custom-field'),
+            
+            ['name' => 'contact-inquiry-list']
 
             
 
@@ -146,7 +149,16 @@ class InstallationSeeder extends Seeder {
 
             'subscription-bill-payment',
             'web-settings',
-            'custom-school-email'
+            'custom-school-email',
+            
+            'database-backup',
+
+            'school-custom-field-list',
+            'school-custom-field-create',
+            'school-custom-field-edit',
+            'school-custom-field-delete',
+
+            'contact-inquiry-list'
 
         ];
         $role->syncPermissions($superAdminHasAccessTo);

@@ -54,7 +54,7 @@ class SystemUpdateController extends Controller {
             $current_version = SystemSetting::where('name', 'system_version')->first()['data'];
             $curl = curl_init();
             curl_setopt_array($curl, array(
-                CURLOPT_URL            => 'https://wrteam.in/validator/eschoolsaas_validator?purchase_code=' . $request->purchase_code . '&domain_url=' . $app_url,
+                CURLOPT_URL            => 'https://validator.wrteam.in/eschoolsaas_validator?purchase_code=' . $request->purchase_code . '&domain_url=' . $app_url,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_MAXREDIRS      => 10,
                 CURLOPT_FOLLOWLOCATION => true,
@@ -137,9 +137,56 @@ class SystemUpdateController extends Controller {
 
             unlink($source_path1);
             unlink($ver_file1);
+
             SystemSetting::where('name', 'system_version')->update([
                 'data' => $version_file['update_version']
             ]);
+
+            $wizardSettings = [
+                [
+                    'name' => 'wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'system_settings_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'notification_settings_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'email_settings_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'verify_email_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'email_template_settings_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'payment_settings_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ],
+                [
+                    'name' => 'third_party_api_settings_wizard_checkMark',
+                    'data' => 1,
+                    'type' => 'integer'
+                ]
+            ];
+    
+            SystemSetting::upsert($wizardSettings, ["name"], ["data","type"]);
+
             $this->cache->removeSystemCache(config('constants.CACHE.SYSTEM.SETTINGS'));
             ResponseService::successResponse('System Updated Successfully');
         } catch (Throwable $e) {

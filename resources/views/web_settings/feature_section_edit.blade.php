@@ -60,10 +60,13 @@
                                             </div>
                                             <div class="form-group col-sm-12 col-md-3 file-input" id="file_div">
                                                 <label class="image-lable">{{ __('image') }} </label>
-                                                <input type="file" name="section[0][image]" class="file form-control" placeholder="">
-                                                <div class="preview-image">
-                                                    <img src="{{ $section->image }}" class="img-fluid" alt="">
-                                                </div>
+                                                <input type="file" name="section[0][image]" class="file form-control" placeholder="" value="image">
+                                                @if (!empty($section->image))
+                                                    <input type="hidden" name="section[0][old_image]" class="file form-control" value="{{ $section->image }}">
+                                                    <div class="preview-image">
+                                                        <img src="{{ $section->image }}" class="img-fluid" alt="">
+                                                    </div>
+                                                @endif
                                             </div>
 
                                             <div class="form-group col-md-1 mt-4 mb-5">

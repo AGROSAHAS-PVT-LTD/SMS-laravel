@@ -4,6 +4,15 @@
 @endsection
 @section('content')
 
+<style>
+    .truncateTitle {
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+
     <div class="content-wrapper">
         <div class="page-header">
             <h3 class="page-title">
@@ -108,20 +117,26 @@
                                 <div class="clearfix">
                                     <h4 class="card-title float-left">{{ __('today_schedule') }}</h4>
                                 </div>
-                                <div class="v-scroll">
-                                    @foreach ($timetables as $timetable)
-                                        <div
-                                            class="wrapper mb-2 d-flex align-items-center justify-content-between py-2 border-bottom">
-                                            <div class="d-flex">
-                                                <div class="wrapper ms-3">
-                                                    <h5>{{ $timetable->start_time }} - {{ $timetable->end_time }}</h5>
-                                                    <span
-                                                        class="text-small text-muted">{{ $timetable->subject->name_with_type }}</span>
+                                <div class="v-scroll dashboard-description">
+                                    @if (count($timetables))
+                                        @foreach ($timetables as $timetable)
+                                            <div
+                                                class="wrapper mb-2 d-flex align-items-center justify-content-between py-2 border-bottom">
+                                                <div class="d-flex">
+                                                    <div class="wrapper ms-3">
+                                                        <h5>{{ $timetable->start_time }} - {{ $timetable->end_time }}</h5>
+                                                        <span
+                                                            class="text-small text-muted">{{ $timetable->subject->name_with_type }}</span>
+                                                    </div>
                                                 </div>
+                                                <span class="text-muted mr-2">{{ $timetable->class_section->full_name }}</span>
                                             </div>
-                                            <span class="text-muted mr-2">{{ $timetable->class_section->full_name }}</span>
+                                        @endforeach
+                                    @else
+                                        <div class="col-md-12 text-center bg-light p-2 mb-2">
+                                            <span>{{ __('no_timetable_found') }}.</span>
                                         </div>
-                                    @endforeach
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -199,7 +214,7 @@
                         <div class="card-body">
                             <h4 class="card-title">{{ __('announcement') }}</h4>
                             <div class="table-responsive">
-                                <table class="table">
+                                {{-- <table class="table">
                                     <thead>
                                     <tr>
                                         <th> {{ __('no.') }}</th>
@@ -208,7 +223,7 @@
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    @if (!empty($announcement))
+                                    @if (count($announcement))
                                         @foreach ($announcement as $key => $row)
                                             <tr>
                                                 <td>{{ $key + 1 }}</td>
@@ -216,9 +231,30 @@
                                                 <td>{{ $row->description }}</td>
                                             </tr>
                                         @endforeach
+                                    @else
+                                        <tr>
+                                            <td colspan="3" class="text-center text-small">
+                                                {{ __('no_announcement_found') }}
+                                            </td>
+                                        </tr>
                                     @endif
                                     </tbody>
-                                </table>
+                                </table> --}}
+                                <table aria-describedby="mydesc" class='table' id='table_list' data-toggle="table"
+                                data-url="{{ route('announcement.show',1) }}"
+                                data-side-pagination="server" data-pagination="true"
+                                data-page-list="[5, 10, 20, 50, 100, 200]"
+                                data-trim-on-search="false" data-mobile-responsive="true" data-sort-name="id"
+                                data-sort-order="desc" data-maintain-selected="true" data-escape="true">
+                            <thead>
+                            <tr>
+                                <th scope="col" data-field="id" data-sortable="true" data-visible="false">{{ __('id') }}</th>
+                                <th scope="col" data-field="no">{{ __('no.') }}</th>
+                                <th scope="col" data-field="title" class="truncateTitle">{{ __('title') }}</th>
+                                <th scope="col" data-events="tableDescriptionEvents" data-formatter="descriptionFormatter" data-field="description">{{ __('description') }}</th>
+                            </tr>
+                            </thead>
+                        </table>
                             </div>
                         </div>
                     </div>

@@ -18,6 +18,7 @@ use App\Repositories\PaymentTransaction\PaymentTransactionInterface;
 use App\Repositories\School\SchoolInterface;
 use App\Repositories\SessionYear\SessionYearInterface;
 use App\Repositories\Stream\StreamInterface;
+use App\Repositories\Student\StudentInterface;
 use App\Repositories\Subscription\SubscriptionInterface;
 use App\Repositories\Timetable\TimetableInterface;
 use App\Repositories\User\UserInterface;
@@ -46,8 +47,9 @@ class DashboardController extends Controller {
     private FeesPaidInterface $feesPaid;
     private PaymentTransactionInterface $paymentTransaction;
     private ClassSectionInterface $classSection;
+    private StudentInterface $student;
 
-    public function __construct(UserInterface $user, AnnouncementInterface $announcement, SubscriptionInterface $subscription, SchoolInterface $school, LeaveInterface $leave, HolidayInterface $holiday, CachingService $cache, ClassSchoolInterface $class, TimetableInterface $timetable, SubscriptionService $subscriptionService, ExamInterface $exam, SessionYearInterface $sessionYear, StreamInterface $stream, FeesInterface $fees, FeesPaidInterface $feesPaid, PaymentTransactionInterface $paymentTransaction, ClassSectionInterface $classSection) {
+    public function __construct(UserInterface $user, AnnouncementInterface $announcement, SubscriptionInterface $subscription, SchoolInterface $school, LeaveInterface $leave, HolidayInterface $holiday, CachingService $cache, ClassSchoolInterface $class, TimetableInterface $timetable, SubscriptionService $subscriptionService, ExamInterface $exam, SessionYearInterface $sessionYear, StreamInterface $stream, FeesInterface $fees, FeesPaidInterface $feesPaid, PaymentTransactionInterface $paymentTransaction, ClassSectionInterface $classSection, StudentInterface $student) {
         // $this->middleware('auth');
         $this->user = $user;
         $this->announcement = $announcement;
@@ -66,9 +68,17 @@ class DashboardController extends Controller {
         $this->feesPaid = $feesPaid;
         $this->paymentTransaction = $paymentTransaction;
         $this->classSection = $classSection;
+        $this->student = $student;
     }
 
     public function index() {
+        
+        if(( Auth::user()->hasRole('Super Admin') || Auth::user()->hasRole('School Admin')) && Auth::user()->two_factor_enabled == 1 && !Auth::user()->two_factor_expires_at && Auth::user()->email != 'superadmin@gmail.com' && Auth::user()->email != 'demo@school.com') {
+            $user = Auth::user();
+            DB::table('users')->where('email',$user->email)->update(['two_factor_secret' => null,'two_factor_expires_at' => null]);
+            Auth::logout();
+            return view('auth.login');
+        }
 
         $teacher = $student = $parent = $teachers = $subscription = $prepiad_upcoming_plan = $prepiad_upcoming_plan_type = $check_payment = null;
         $boys = $girls = $license_expire = 0;
@@ -83,10 +93,10 @@ class DashboardController extends Controller {
         if (Auth::user()->hasRole('School Admin') || Auth::user()->school_id) {
             // Counters
             $teacher = $this->user->builder()->role("Teacher")->withTrashed()->count();
-            $student = $this->user->builder()->role("Student")->has('student')->withTrashed()->count();
-            $parent = $this->user->guardian()->whereHas('child.user', function ($q) {
-                $q->owner();
+            $student = $this->user->builder()->role('Student')->withTrashed()->whereHas('students', function ($q) {
+                $q->where('application_status', 1);
             })->count();
+            $parent = $this->student->builder()->where('application_status',1)->groupBy('guardian_id')->get()->count();
             
             if ($student > 0) {
                 $boys_count = $this->user->builder()->role('Student')->where('gender', 'male')->withTrashed()->count();

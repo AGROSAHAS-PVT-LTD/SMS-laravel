@@ -425,6 +425,11 @@
         document.querySelectorAll('.remove-allowance-div').forEach(function(button) {
             button.addEventListener('click', function() {
                 // button.closest('[data-repeater-item]').remove();
+
+                // reset the select option
+                const element = document.getElementById("allowance_id");
+                element.selectedIndex = '0';
+
                 button.closest('[data-repeater-item]').style.display = 'none';
             });
         });
@@ -509,6 +514,11 @@
         document.querySelectorAll('.remove-deduction-div').forEach(function(button) {
             button.addEventListener('click', function() {
                 // button.closest('[data-repeater-item]').remove();
+
+                // reset the select option
+                const element = document.getElementById("deduction_id");
+                element.selectedIndex = '0';
+
                 button.closest('[data-repeater-item]').style.display = 'none';
             });
         });

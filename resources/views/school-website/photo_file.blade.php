@@ -70,12 +70,13 @@
                 maxCount) {
                 loading = true;
                 @foreach ($photos->file as $row)
-                    var height = random(200, 400);
+                    // var height = random(200, 400);
+                    var height = 300;
                     // Change detailArr1 to detailArr if added lightbox
                     // And add "{{ asset('assets/school/images/photosArrIcon.png') }}" image src
                     $("#waterfall").append("<li><div class='m-2 upperBigImg1' style='height:" + height +
                         "px'><img class='thumbnail' style='height:" + height +
-                        "px;width: 100%;' src='{{ $row->file_url }}' alt=''><div class='detailArr'> <img src='{{ asset('assets/school/images/photosArrIcon.png') }}' alt=''></div></div></li>"
+                        "px;width: 100%; aspect-ratio: 1 / 1; object-fit: contain;' src='{{ $row->file_url }}' alt=''><div class='detailArr'> <img src='{{ asset('assets/school/images/photosArrIcon.png') }}' alt=''></div></div></li>"
                     );
 
                     count++;

@@ -10,7 +10,9 @@ use App\Repositories\User\UserInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
-use Auth;
+use App\Services\SessionYearsTrackingsService;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
@@ -24,13 +26,15 @@ class NotificationController extends Controller
     private CachingService $cache;
     private UserInterface $user;
     private FeesInterface $fees;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(NotificationInterface $notification, CachingService $cache, UserInterface $user, FeesInterface $fees)
+    public function __construct(NotificationInterface $notification, CachingService $cache, UserInterface $user, FeesInterface $fees, SessionYearsTrackingsService $sessionYearsTrackingsService)
     {
         $this->notification = $notification;
         $this->cache = $cache;
         $this->user = $user;
         $this->fees = $fees;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     /**
@@ -42,7 +46,8 @@ class NotificationController extends Controller
         ResponseService::noFeatureThenRedirect('Announcement Management');
         ResponseService::noAnyPermissionThenRedirect(['notification-create', 'notification-list']);
 
-        $roles = Role::whereNot('name', 'Guardian')->pluck('name');
+        $roles = Role::whereNot('name', 'School Admin')->pluck('name','id');
+        $over_due_fees_roles = Role::whereIn('name', ['Student','Guardian'])->pluck('name','id');
         $users = $this->user->guardian()->with('roles')->whereHas('child.user', function ($q) {
             $q->owner();
         })->orWhere(function ($q) use ($roles) {
@@ -55,7 +60,7 @@ class NotificationController extends Controller
         $all_users = $users->pluck('id')->toArray();
         $all_users = implode(",", $all_users);
 
-        return view('notification.index', compact('users', 'roles', 'all_users'));
+        return view('notification.index', compact('users', 'roles', 'all_users', 'over_due_fees_roles'));
     }
 
     /**
@@ -72,76 +77,39 @@ class NotificationController extends Controller
      */
     public function store(Request $request)
     {
-        //
-        ResponseService::noFeatureThenRedirect('Announcement Management');
-        ResponseService::noPermissionThenRedirect('notification-create');
-        $request->validate([
+        // Validate request data
+        $validator = Validator::make($request->all(), [
             'title' => 'required',
             'message' => 'required',
-            'type' => 'required',
-            'roles' => 'required_if:type,role',
-            'user' => 'required_if:type,specific'
+            'roles' => 'required|array',
+            'user_id' => 'required|not_in:0,null',
+        ], [
+            'title.required' => 'Title is required.',
+            'message.required' => 'Message is required.',
+            'roles.required_if' => 'Please select roles',
+            'user_id.required' => 'Please select users',
         ]);
+
+        if ($validator->fails()) {
+            ResponseService::errorResponse($validator->errors()->first());
+        }
 
         try {
             DB::beginTransaction();
             $sessionYear = $this->cache->getDefaultSessionYear();
+            $roles = Role::whereNot('name','School Admin')->where('id',$request->roles)->pluck('name')->first();
             $data = [
                 'title' => $request->title,
                 'message' => $request->message,
-                'send_to' => $request->type,
+                'send_to' => $roles ?? '',
                 'image' => $request->hasFile('image') ? $request->image : null,
                 'session_year_id' => $sessionYear->id
             ];
             $notification = $this->notification->create($data);
-
             $notifyUser = [];
-
-            if ($request->type == 'All users') {
-                // All
-                $notifyUser = explode(",", $request->all_users);
-            } else if ($request->type == 'Specific users') {
-                // Specific
-                $notifyUser = $request->user;
-            } else if ($request->type == 'Over Due Fees') {
-                // Over due fees
-                $today = Carbon::now()->format('Y-m-d');
-                $student_ids = array();
-                $guardian_ids = array();
-                $fees = $this->fees->builder()->whereDate('due_date', '<', $today)->get();
-
-                foreach ($fees as $key => $fee) {
-                    $sql = $this->user->builder()->role('Student')->select('id', 'first_name', 'last_name')->with([
-                        'fees_paid'     => function ($q) use ($fee) {
-                            $q->where('fees_id', $fee->id);
-                        },
-                        'student:id,guardian_id,user_id', 'student.guardian:id'
-                    ])->whereHas('student.class_section', function ($q) use ($fee) {
-                        $q->where('class_id', $fee->class_id);
-                    })->whereDoesntHave('fees_paid', function ($q) use ($fee) {
-                        $q->where('fees_id', $fee->id);
-                    })->orWhereHas('fees_paid', function ($q) use ($fee) {
-                        $q->where(['fees_id' => $fee->id, 'is_fully_paid' => 0]);
-                    });
-                    $student_ids[] = $sql->pluck('id')->toArray();
-                    $guardian_ids[] = $sql->get()->pluck('student.guardian_id')->toArray();
-                }
-
-                $student_ids = array_merge(...$student_ids);
-                $guardian_ids = array_merge(...$guardian_ids);
-                $notifyUser = array_merge($student_ids, $guardian_ids);
-            } else if ($request->type == 'Roles') {
-                $guardian_ids = [];
-                if (in_array('Guardian', $request->roles)) {
-                    $guardian_ids = $this->user->guardian()->with('roles')->whereHas('child.user', function ($q) {
-                        $q->owner();
-                    })->pluck('id')->toArray();
-                    $roles = array_diff($request->roles, ["Guardian"]);
-                    $notifyUser = $this->user->builder()->role($roles)->pluck('id')->toArray();
-                } else {
-                    $notifyUser = $this->user->builder()->role($request->roles)->pluck('id')->toArray();
-                }
-                $notifyUser = array_merge($guardian_ids, $notifyUser);
+            
+            if ($request->has('user_id')) {
+                $notifyUser = explode(',', $request->user_id);
             }
 
             $customData = [];
@@ -150,6 +118,9 @@ class NotificationController extends Controller
                     'image' => $notification->image
                 ];
             }
+
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Notification', $notification->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             $title = $request->title; // Title for Notification
             $body = $request->message;
             $type = 'Notification';
@@ -185,12 +156,17 @@ class NotificationController extends Controller
         $order = request('order', 'DESC');
         $search = request('search');
 
-        $sql = $this->notification->builder()
+        $sql = $this->notification->builder()->with('session_years_trackings')
             ->where(function ($query) use ($search) {
                 $query->when($search, function ($q) use ($search) {
                     $q->where('title', 'LIKE', "%$search%")->orwhere('message', 'LIKE', "%$search%")->Owner();
                 });
             });
+
+        $sql->whereHas('session_years_trackings', function ($q) {
+            $q->where('session_year_id', $this->cache->getDefaultSessionYear()->id);
+        });
+        // dd($sql->get()->toArray());
         $total = $sql->count();
 
         $sql->orderBy($sort, $order)->skip($offset)->take($limit);
@@ -241,10 +217,101 @@ class NotificationController extends Controller
         ResponseService::noPermissionThenRedirect('notification-delete');
         try {
             $this->notification->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\Notification', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Notification Controller -> Delete Method");
             ResponseService::errorResponse();
         }
+    }
+
+    public function userShow(Request $request)
+    {
+
+        ResponseService::noFeatureThenRedirect('Announcement Management');
+        ResponseService::noPermissionThenRedirect('notification-create');
+        $offset = request('offset', 0);
+        $limit = request('limit', 10);
+        $sort = request('sort', 'id');
+        $order = request('order', 'DESC');
+        $search = request('search');
+        $type = request('type');
+
+        $sql = $this->user->builder()->whereHas('roles', function($q) {
+            $q->whereNot('name','School Admin');
+        })
+            ->where(function ($query) use ($search) {
+                $query->when($search, function ($q) use ($search) {
+                    $q->where('first_name', 'LIKE', "%$search%")
+                    ->orwhere('last_name', 'LIKE', "%$search%")
+                    ->orWhereRaw("concat(first_name,' ',last_name) LIKE '%" . $search . "%'")
+                    ->Owner();
+                });
+            });
+
+        if ($type == 'Roles' && $request->roles) {
+            $sql->whereHas('roles', function($q) use($request) {
+                $q->whereIn('id', $request->roles);
+            });
+        }
+
+        if ($type == 'OverDueFees') {
+            $today = Carbon::now()->format('Y-m-d');
+            $users_ids = [];
+            
+            $fees = $this->fees->builder()->whereDate('due_date', '<', $today)->get();
+            
+            if ($fees->isNotEmpty()) {
+                foreach ($fees as $fee) {
+                    $overdueStudents = $this->user->builder()
+                        ->role('Student')
+                        ->select('id', 'first_name', 'last_name')
+                        ->with(['fees_paid' => function ($q) use ($fee) {
+                            $q->where('fees_id', $fee->id);
+                        }, 'student:id,guardian_id,user_id', 'student.guardian:id'])
+                        ->whereHas('student.class_section', function ($q) use ($fee) {
+                            $q->where('class_id', $fee->class_id);
+                        })
+                        ->whereDoesntHave('fees_paid', function ($q) use ($fee) {
+                            $q->where('fees_id', $fee->id);
+                        })
+                        ->orWhereHas('fees_paid', function ($q) use ($fee) {
+                            $q->where(['fees_id' => $fee->id, 'is_fully_paid' => 0]);
+                        })
+                        ->get();
+
+                    $users_ids = array_unique(array_merge($overdueStudents->pluck('id')->toArray() ?? [], $overdueStudents->pluck('student.guardian.id')->toArray() ?? []));
+                    $sql = $this->user->builder()->whereIn("id", $users_ids);
+
+                    if(is_array($request->over_due_fees_roles)) {
+                        $sql->whereHas('roles', function($q) use($request) {
+                            $q->whereIn('id', $request->over_due_fees_roles);
+                        });
+                    }
+                }
+            } else {
+                $sql = $this->user->builder()->whereIn("id", $users_ids);
+            }
+        }
+        $total = $sql->count();
+
+        $sql->orderBy($sort, $order)->skip($offset)->take($limit);
+        $res = $sql->get();
+
+        $bulkData = array();
+        $bulkData['total'] = $total;
+        $rows = array();
+        $no = 1;
+        foreach ($res as $row) {
+            
+            $tempRow = $row->toArray();
+            $tempRow['no'] = $no++;            
+            $rows[] = $tempRow;
+        }
+
+        $bulkData['rows'] = $rows;
+        return response()->json($bulkData);
+
     }
 }

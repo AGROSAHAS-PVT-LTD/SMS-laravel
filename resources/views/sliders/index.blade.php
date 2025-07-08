@@ -38,33 +38,31 @@
                                     {!! Form::text('link', null, ['class' => 'form-control','placeholder' => __('link')]) !!}
                                 </div>
 
-                                @if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 1)
-                                    <div class="form-group col-sm-12 col-md-4">
-                                        <label for="">{{ __('type') }}</label>
-                                        <div class="col-12 d-flex row">
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    <input type="radio" class="form-check-input" checked name="type" value="1" required="required">
-                                                    {{ __('app') }}
-                                                </label>
-                                            </div>
+                                <div class="form-group col-sm-12 col-md-4">
+                                    <label for="">{{ __('type') }}</label>
+                                    <div class="col-12 d-flex row">
+                                        <div class="form-check form-check-inline">
+                                            <label class="form-check-label">
+                                                <input type="radio" class="form-check-input" checked name="type" value="1" required="required">
+                                                {{ __('app') }}
+                                            </label>
+                                        </div>
 
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    <input type="radio" class="form-check-input" name="type" value="2" required="required">
-                                                    {{ __('web') }}
-                                                </label>
-                                            </div>
+                                        <div class="form-check form-check-inline">
+                                            <label class="form-check-label">
+                                                <input type="radio" class="form-check-input" name="type" value="2" required="required">
+                                                {{ __('web') }}
+                                            </label>
+                                        </div>
 
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    <input type="radio" class="form-check-input" name="type" value="3" required="required">
-                                                    {{ __('both') }}
-                                                </label>
-                                            </div>
+                                        <div class="form-check form-check-inline">
+                                            <label class="form-check-label">
+                                                <input type="radio" class="form-check-input" name="type" value="3" required="required">
+                                                {{ __('both') }}
+                                            </label>
                                         </div>
                                     </div>
-                                @endif
+                                </div>
                                 
 
 
@@ -146,34 +144,32 @@
                                     <label for="">{{ __('link') }}</label>
                                     {!! Form::text('link', null, ['class' => 'form-control edit_link', 'placeholder' => __('link')]) !!}
                                 </div>
+                                
+                                <div class="form-group">
+                                    <label for="">{{ __('type') }}</label>
+                                    <div class="col-12 d-flex row">
+                                        <div class="form-check form-check-inline">
+                                            <label class="form-check-label">
+                                                <input type="radio" class="form-check-input edit_type" name="type" value="1" required="required">
+                                                {{ __('app') }}
+                                            </label>
+                                        </div>
 
-                                @if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 1)
-                                    <div class="form-group">
-                                        <label for="">{{ __('type') }}</label>
-                                        <div class="col-12 d-flex row">
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    <input type="radio" class="form-check-input edit_type" name="type" value="1" required="required">
-                                                    {{ __('app') }}
-                                                </label>
-                                            </div>
+                                        <div class="form-check form-check-inline">
+                                            <label class="form-check-label">
+                                                <input type="radio" class="form-check-input edit_type" name="type" value="2" required="required">
+                                                {{ __('web') }}
+                                            </label>
+                                        </div>
 
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    <input type="radio" class="form-check-input edit_type" name="type" value="2" required="required">
-                                                    {{ __('web') }}
-                                                </label>
-                                            </div>
-
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    <input type="radio" class="form-check-input edit_type" name="type" value="3" required="required">
-                                                    {{ __('both') }}
-                                                </label>
-                                            </div>
+                                        <div class="form-check form-check-inline">
+                                            <label class="form-check-label">
+                                                <input type="radio" class="form-check-input edit_type" name="type" value="3" required="required">
+                                                {{ __('both') }}
+                                            </label>
                                         </div>
                                     </div>
-                                @endif
+                                </div>
 
                                 
                             </div>

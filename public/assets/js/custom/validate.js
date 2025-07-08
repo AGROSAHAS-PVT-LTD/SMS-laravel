@@ -506,8 +506,8 @@ $(".add-assignment-form").validate({
 
 $(".edit-assignment-form").validate({
     rules: {
-        'class_section_id': "required",
-        'subject_id': "required",
+        'class_section_id[]': "required",
+        'class_subject_id': "required",
         'name': "required",
         'due_date': "required",
         'extra_days_for_resubmission': "required",
@@ -726,6 +726,25 @@ $(".online-registration-form").validate({
         },
 
     },
+    success: function (label, element) {
+        success(element);
+    },
+    errorPlacement: function (label, element) {
+        errorPlacement(label, element);
+    },
+    highlight: function (element, errorClass) {
+        highlight(element, errorClass);
+    }
+});
+
+$(".restore-form").validate({
+    rules: {
+        zip: {
+            required: true,
+            extension: "zip"
+        },
+    },
+
     success: function (label, element) {
         success(element);
     },

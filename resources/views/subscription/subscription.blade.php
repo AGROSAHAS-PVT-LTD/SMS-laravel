@@ -507,14 +507,29 @@
 
                                                 <input type="hidden" name="subscription_id" class="subscription_id" value="">
 
-                                                <button class="btn btn-theme" id="razorpay-button">{{ __('razorpay') }}</button>
+                                                <button class="btn btn-theme" type="submit" id="razorpay-button">{{ __('Pay_with_Razorpay') }}</button>
                                             </form>
                                         </div>
-                                    @else
+                                    @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Stripe')
                                         <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-stripe-publishable-key="{{ $settings['stripe_publishable_key'] ?? null }}" data-success-function="formSuccessFunction" method="post">
                                             @csrf
+                                            <input type="hidden" name="payment_method" value="stripe">
                                             <input type="hidden" name="id" id="edit_id">
-                                            <input class="btn btn-theme payment-status" type="submit" value={{ __('stripe') }} />
+                                            <input class="btn btn-theme payment-status" type="submit" value={{ __('Pay_with_Stripe') }} />
+                                        </form>
+                                    @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Paystack')
+                                        <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-paystack-publishable-key="{{ $paymentConfiguration->api_key ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                            @csrf
+                                            <input type="hidden" name="payment_method" value="paystack">
+                                            <input type="hidden" name="id" id="edit_id">
+                                            <input class="btn btn-theme payment-status" type="submit" value={{ __('Pay_with_Paystack') }} />
+                                        </form>
+                                    @elseif ($paymentConfiguration && $paymentConfiguration->payment_method == 'Flutterwave')
+                                        <form class="" action="{{ route('subscriptions.store') }}" novalidate="novalidate" data-flutterwave-publishable-key="{{ $paymentConfiguration->api_key ?? null }}" data-success-function="formSuccessFunction" method="post">
+                                            @csrf
+                                            <input type="hidden" name="payment_method" value="flutterwave">
+                                            <input type="hidden" name="id" id="edit_id">
+                                            <input class="btn btn-theme payment-status" type="submit" value={{ __('Pay_with_Flutterwave') }} />
                                         </form>
                                     @endif
                                     

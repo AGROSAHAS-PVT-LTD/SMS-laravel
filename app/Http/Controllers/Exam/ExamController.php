@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Exam;
 
+use App\Exports\MarksDataExport;
+use App\Imports\MarksDataImport;
 use App\Http\Controllers\Controller;
 use App\Models\ExamResult;
 use App\Models\ExamTimetable;
@@ -16,17 +18,27 @@ use App\Repositories\ExamTimetable\ExamTimetableInterface;
 use App\Repositories\Grades\GradesInterface;
 use App\Repositories\Medium\MediumInterface;
 use App\Repositories\SessionYear\SessionYearInterface;
+use App\Repositories\Student\StudentInterface;
 use App\Repositories\StudentSubject\StudentSubjectInterface;
 use App\Repositories\Subject\SubjectInterface;
 use App\Repositories\User\UserInterface;
 use App\Services\BootstrapTableService;
+use App\Services\SessionYearsTrackingsService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use PDF;
 use Throwable;
+use Excel;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
+use App\Models\ClassTeacher;
+use Illuminate\Support\Str;
+
+use function PHPUnit\Framework\isEmpty;
 
 class ExamController extends Controller
 {
@@ -45,8 +57,10 @@ class ExamController extends Controller
     private MediumInterface $mediums;
     private ClassTeachersInterface $classTeacher;
     private GradesInterface $grade;
-
-    public function __construct(ExamInterface $exam, ClassSchoolInterface $class, SessionYearInterface $sessionYear, SubjectInterface $subject, ExamTimetableInterface $examTimetable, ClassSectionInterface $classSection, ExamMarksInterface $examMarks, ExamResultInterface $examResult, StudentSubjectInterface $studentSubject, ClassSubjectInterface $classSubject, UserInterface $users, CachingService $cache, MediumInterface $mediums, ClassTeachersInterface $classTeacher, GradesInterface $grade)
+    private StudentInterface $student;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
+    
+    public function __construct(ExamInterface $exam, ClassSchoolInterface $class, SessionYearInterface $sessionYear, SubjectInterface $subject, ExamTimetableInterface $examTimetable, ClassSectionInterface $classSection, ExamMarksInterface $examMarks, ExamResultInterface $examResult, StudentSubjectInterface $studentSubject, ClassSubjectInterface $classSubject, UserInterface $users, CachingService $cache, MediumInterface $mediums, ClassTeachersInterface $classTeacher, GradesInterface $grade, StudentInterface $student, SessionYearsTrackingsService $sessionYearsTrackingsService)
     {
         $this->exam = $exam;
         $this->class = $class;
@@ -63,6 +77,8 @@ class ExamController extends Controller
         $this->mediums = $mediums;
         $this->classTeacher = $classTeacher;
         $this->grade = $grade;
+        $this->student = $student;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index()
@@ -80,26 +96,88 @@ class ExamController extends Controller
     {
         ResponseService::noFeatureThenRedirect('Exam Management');
         ResponseService::noPermissionThenSendJson('exam-create');
-        $request->validate(['name' => 'required', 'session_year_id' => 'required',]);
+        $request->validate([
+            'name' => 'required',
+            'session_year_id' => 'required',
+            'class_id' => 'required|array',
+            'class_id.*' => 'exists:classes,id'
+        ]);
 
         try {
-            $examData = array(); // Initialize examData with Empty Array
-            // Loop towards Classes
-            foreach ($request->class_id as $classId) {
-                $examData[] = array(
-                    'name'            => $request->name,
-                    'description'     => $request->description,
-                    'class_id'        => $classId,
-                    'session_year_id' => $request->session_year_id
-                );
-            }
-            $this->exam->createBulk($examData); // Store The Exam Data According to Class
+            DB::beginTransaction();
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $examData = [];
 
+            // Loop through each class ID and create exam records
+            foreach ($request->class_id as $classId) {
+                $exam = $this->exam->create([
+                    'name' => $request->name,
+                    'session_year_id' => $request->session_year_id,
+                    'description' => $request->description,
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
+                    'school_id' => Auth::user()->school_id,
+                    'publish' => $request->publish ?? 0,
+                    'last_result_submission_date' => $request->last_result_submission_date,
+                    'class_id' => $classId
+                ]);
+
+                if ($sessionYear) {
+                    $this->sessionYearsTrackingsService->storeSessionYearsTracking(
+                        'App\Models\Exam',
+                        $exam->id,
+                        Auth::user()->id,
+                        $sessionYear->id,
+                        Auth::user()->school_id,
+                        null
+                    );
+                }
+
+                $examData[] = $exam;
+            }
+
+            // Get class sections for notifications
+            $classSectionIds = $this->classSection->builder()
+                ->whereIn('class_id', $request->class_id)
+                ->pluck('id');
+
+            $classTeacherIds = $this->classTeacher->builder()
+                ->whereIn('class_section_id', $classSectionIds)
+                ->distinct()
+                ->pluck('teacher_id')
+                ->toArray();
+
+            // Send notifications
+            $title = "Exams Created";
+            $body = "New Exam Added Click here to see !!!";
+            $type = "exam";
+
+            $students = $this->student->builder()
+                ->whereHas('class_section', function($q) use($request) {
+                    $q->whereIn('class_id', $request->class_id);
+                })
+                ->get();
+
+            $guardian_ids = $students->pluck('guardian_id')->toArray();
+            $student_ids = $students->pluck('user_id')->toArray();
+            $users = array_unique(array_merge($student_ids, $guardian_ids, $classTeacherIds));
+
+            send_notification($users, $title, $body, $type);
+
+            DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
-            DB::rollBack();
-            ResponseService::logErrorResponse($e, "Exam Controller -> Store method");
-            ResponseService::errorResponse();
+            if (Str::contains($e->getMessage(), [
+                'does not exist',
+                'file_get_contents'
+                ])) {
+                    DB::commit();
+                    ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
+                } else {
+                    DB::rollBack();
+                    ResponseService::logErrorResponse($e, "Exam Controller -> Store method");
+                    ResponseService::errorResponse();
+            }
         }
     }
 
@@ -115,15 +193,23 @@ class ExamController extends Controller
         $showDeleted = request('show_deleted');
         $medium_id = request('medium_id');
 
-        $sql = $this->exam->builder()->with('class.medium', 'class.stream', 'timetable.subject_teacher.subject','timetable.subject_teacher.teacher')->when($search, function ($query) use ($search) {
-            $query->when($search, function ($query) use ($search) {
+
+        $sql = $this->exam->builder()->with([
+            'class.medium', 'class.stream', 'class.section',
+            'timetable.class_subject','timetable.exam_marks.user.student'
+        ])
+            ->when($search, function ($query) use ($search) {
                 $query->where(function ($query) use ($search) {
-                    $query->where('id', 'LIKE', "%$search%")->orwhere('name', 'LIKE', "%$search%")->orwhere('description', 'LIKE', "%$search%")->orwhere('created_at', 'LIKE', "%" . date('Y-m-d H:i:s', strtotime($search)) . "%")->orwhere('updated_at', 'LIKE', "%" . date('Y-m-d H:i:s', strtotime($search)) . "%")->orWhereHas('session_year', function ($q) use ($search) {
-                        $q->where('name', 'LIKE', "%$search%");
-                    });
+                    $query->where('id', 'LIKE', "%$search%")
+                        ->orWhere('name', 'LIKE', "%$search%")
+                        ->orWhere('description', 'LIKE', "%$search%")
+                        ->orWhere('created_at', 'LIKE', "%" . date('Y-m-d H:i:s', strtotime($search)) . "%")
+                        ->orWhere('updated_at', 'LIKE', "%" . date('Y-m-d H:i:s', strtotime($search)) . "%")
+                        ->orWhereHas('session_year', function ($subQuery) use ($search) {
+                            $subQuery->where('name', 'LIKE', "%$search%");
+                        });
                 });
-            });
-        })->when(request('session_year_id') != null, function ($query) {
+            })->when(request('session_year_id') != null, function ($query) {
             $query->where('session_year_id', request('session_year_id'));
         })->when($medium_id, function ($query) use ($medium_id) {
             $query->whereHas('class', function ($q) use ($medium_id) {
@@ -143,39 +229,77 @@ class ExamController extends Controller
         $bulkData['total'] = $total;
         $rows = array();
         $no = 1;
+        
         foreach ($res as $row) {
             $operate = '';
-
-            // Check the params of Show Deleted
+        
             if ($showDeleted) {
-                // Show Restore And Trash Button
-                $operate .= BootstrapTableService::menuRestoreButton('restore',route('exams.restore', $row->id));
-                $operate .= BootstrapTableService::menuTrashButton('delete',route('exams.trash', $row->id));
+                $operate .= BootstrapTableService::menuRestoreButton('restore', route('exams.restore', $row->id));
+                $operate .= BootstrapTableService::menuTrashButton('delete', route('exams.trash', $row->id));
             } else if ($row->publish == 0) {
-                $operate .= BootstrapTableService::menuButton('timetable',route('exam.timetable.edit', $row->id));
-
-                // $operate .= BootstrapTableService::menuButton('marks_status',"#",['marks-status'],['data-toggle' => "modal", 'data-target' => "#marksStatus"]);
-
-                $operate .= BootstrapTableService::menuButton('publish',"#",["publish-exam-result"],['data-id' => $row->id]);
-
-                // If Exam Status is Upcoming And Should be published Status 0
+                $operate .= BootstrapTableService::menuButton('timetable', route('exam.timetable.edit', $row->id));
+                $operate .= BootstrapTableService::menuButton('publish', "#", ["publish-exam-result"], ['data-id' => $row->id]);
+        
                 if (($row->exam_status == 0)) {
-                    $operate .= BootstrapTableService::menuEditButton('edit',route('exams.update', $row->id));
+                    $operate .= BootstrapTableService::menuEditButton('edit', route('exams.update', $row->id));
                 }
-                $operate .= BootstrapTableService::menuDeleteButton('delete',route('exams.destroy', $row->id));
-
+                $operate .= BootstrapTableService::menuDeleteButton('delete', route('exams.destroy', $row->id));
             } else if ($row->publish == 1) {
-                // If Publish Status is 1 Then Show only UnPublish Exam
-                // Undo Publish Button
-
-                $operate .= BootstrapTableService::menuButton('timetable',route('exam.timetable.edit', $row->id));
-                $operate .= BootstrapTableService::menuButton('Unpublish',"#",["publish-exam-result"],['data-id' => $row->id]);
+                $operate .= BootstrapTableService::menuButton('timetable', route('exam.timetable.edit', $row->id));
+                $operate .= BootstrapTableService::menuButton('Unpublish', "#", ["publish-exam-result"], ['data-id' => $row->id]);
             }
-
+        
             $tempRow = $row->toArray();
             $tempRow['no'] = $no++;
-            // $tempRow['operate'] = $operate;
+            $classSectionWiseStatus = []; // Initialize here to accumulate all data for the current exam
+        
+            foreach ($row->class->section as $section) {
+                $sectionId = $section->id;
+                $subjectWiseStatus = [];
+                $processedSubjects = [];
+        
+                $classNameWithSection = $row->class->name . ' - ' . $section->name . ' ' . $row->class->medium->name;
+                
+                $class_section_id = $this->classSection->builder()->where('section_id', $sectionId)->first();
+        
+                if ($row->has_timetable) {
+                    foreach ($row->timetable as $timetable) {
+                        $subject = $timetable->subject_with_name;
+                        $subjectId = $timetable->class_subject_id;
+        
+                        if (isset($processedSubjects[$subjectId])) {
+                            continue;
+                        }
+                        $marks = $timetable->exam_marks->where('user.student.class_section_id', $class_section_id->id);
+                        $marksSubmitted = $marks->isNotEmpty();
+                        $status = $marksSubmitted ? 'Submitted' : 'Pending';
+                    
+                        $subjectWiseStatus[] = [
+                            'subject_id' => $subjectId,
+                            'subject' => $subject,
+                            'status' => $status,
+                            'marks_count' => $marksSubmitted ? $marks->count() : 0,
+                        ];
+        
+                        $processedSubjects[$subjectId] = true;
+                    }
+        
+                    $classSectionStatus = count($subjectWiseStatus) > 0
+                    ? (collect($subjectWiseStatus)->contains('status', 'Pending') ? 'Pending' : 'Submitted')
+                    : 'Pending';
+                
+        
+                    $classSectionWiseStatus[] = [
+                        'class_section_name' => $classNameWithSection,
+                        'status' => $classSectionStatus,
+                        'subjectWiseStatus' => $subjectWiseStatus,
+                    ];
+                }
+            }
+            $tempRow['classSectionWiseStatus'] = $classSectionWiseStatus;
             $tempRow['operate'] = BootstrapTableService::menuItem($operate);
+            $tempRow['created_at'] = $row->created_at;
+            $tempRow['updated_at'] = $row->updated_at; 
             $rows[] = $tempRow;
         }
         $bulkData['rows'] = $rows;
@@ -202,6 +326,8 @@ class ExamController extends Controller
         ResponseService::noPermissionThenSendJson('exam-delete');
         try {
             $this->exam->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Exam', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
             DB::rollBack();
@@ -281,13 +407,14 @@ class ExamController extends Controller
             }]);
         }])->where('publish', 0)->get();
 
+        // dd($exams->toArray());
         return response()->view('exams.upload-marks', compact('exams', 'classes'));
     }
 
     public function marksList(Request $request)
     {
         ResponseService::noFeatureThenRedirect('Exam Management');
-        ResponseService::noPermissionThenSendJson('class-teacher');
+
 
         $request->validate(['class_section_id' => 'required', 'exam_id' => 'required', 'class_subject_id' => 'required',], ['class_section_id.required' => 'Class section field is required', 'exam_id.required' => 'Exam field is required', 'class_subject_id.required' => 'Class subject field is required',]);
 
@@ -306,7 +433,7 @@ class ExamController extends Controller
             if ($classSubject->type == "Elective") {
                 $studentIds = $this->studentSubject->builder()->where(['class_section_id' => $request->class_section_id, 'class_subject_id' => $classSubject->id])->pluck('student_id');
             } else {
-                $studentIds = $this->users->builder()->role('student')->whereHas('student', function ($query) use ($request) {
+                $studentIds = $this->users->builder()->role('Student')->whereHas('student', function ($query) use ($request) {
                     $query->where('class_section_id', $request->class_section_id);
                 })->pluck('id');
             }
@@ -374,6 +501,10 @@ class ExamController extends Controller
 
                 $this->examMarks->updateOrCreate(['id' => $examMarks['exam_marks_id'] ?? null], ['exam_timetable_id' => $exam_timetable->id, 'student_id' => $examMarks['student_id'], 'class_subject_id' => $request->class_subject_id, 'obtained_marks' => $examMarks['obtained_marks'], 'passing_status' => $status, 'session_year_id' => $exam_timetable->session_year_id, 'grade' => $exam_grade,]);
             }
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Exam', $request->exam_id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Exam Controller -> Get Exam Subjects");
@@ -381,11 +512,28 @@ class ExamController extends Controller
         }
     }
 
-    public function getSubjectByExam($exam_id)
+    public function getSubjectByExam($exam_id,Request $request)
     {
         ResponseService::noFeatureThenRedirect('Exam Management');
         try {
-            $exam_timetable = ExamTimetable::with('subject')->where('exam_id', $exam_id)->get();
+            $teacherId = Auth::user()->id;
+          
+            $isClassTeacher = ClassTeacher::where('teacher_id', $teacherId)->where('class_section_id', $request->class_section_id)->first();
+           
+
+            if ($isClassTeacher) {
+                $exam_timetable = ExamTimetable::with(['class_subject', 'subject_teacher'])
+                    ->where('exam_id', $exam_id)
+                    ->get();
+            } else {
+                $exam_timetable = ExamTimetable::with(['class_subject', 'subject_teacher'])
+                    ->whereHas('subject_teacher', function ($query) use ($teacherId) {
+                        $query->where('teacher_id', $teacherId);
+                    })
+                    ->where('exam_id', $exam_id)
+                    ->get();
+            }
+
             $response = array('error' => false, 'message' => trans('data_fetch_successfully'), 'data' => $exam_timetable);
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Exam Controller -> Get Exam Subjects");
@@ -575,10 +723,12 @@ class ExamController extends Controller
                     break;
                 }
             }
-            
+        
             if (!$allSubjectsSubmitted) {
                 ResponseService::errorResponse("Marks are not uploaded yet.");
             }
+            
+            
 
             DB::beginTransaction();
             if ($exam->exam_status == 2 && $exam->marks->isNotEmpty()) {
@@ -597,8 +747,8 @@ class ExamController extends Controller
 
                         // Get passing status
                         $status = $this->resultStatus($id, $examMarks['student_id']);
-
-                        return [
+                        
+                        $data = [
                             'exam_id'          => $exam->id,
                             'class_section_id' => $examMarks['user']['student']['class_section_id'],
                             'student_id'       => $examMarks['student_id'],
@@ -609,10 +759,23 @@ class ExamController extends Controller
                             'status'           => $status,
                             'session_year_id'  => $exam->session_year_id
                         ];
+                        return $data;
                     });
+
+                    $studentIds = $examResult->pluck('student_id')->toArray();
+                    $guardian_id = $this->student->builder()->with('user')->whereIn('user_id', $studentIds)->pluck('guardian_id')->toArray();
 
                     $this->examResult->createBulk($examResult->toArray()); // Add Data in Exam Result
                     $this->exam->update($id, ['publish' => 1]); // Update Exam with Publish status 1
+
+                    $user = array_merge($studentIds,$guardian_id);
+                   
+                    $title = 'Result Publish for '. $exam->name. ' examinations !!!';
+                    $body = 'Congrats your result has been publish Click here see your result ';
+                    $type = "exam result";
+                
+                    send_notification($user, $title, $body, $type);
+
                 } else {
                     ExamResult::where('exam_id', $id)->delete(); // If Exam is already published then unpublished it and delete Exam Result
                     $this->exam->update($id, ['publish' => 0]); // Update Exam with Publish status 0
@@ -622,10 +785,19 @@ class ExamController extends Controller
             } else {
                 ResponseService::errorResponse('Exam not completed yet');
             }
+
         } catch (Throwable $e) {
-            DB::rollBack();
+
+            if (Str::contains($e->getMessage(), [
+                'does not exist','file_get_contents'
+            ])) {
+                DB::commit();
+                ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
+            } else {
+                DB::rollBack();
             ResponseService::logErrorResponse($e, "Exam Controller -> publishExamResult method");
             ResponseService::errorResponse();
+            }
         }
     }
 
@@ -648,6 +820,8 @@ class ExamController extends Controller
         try {
             DB::beginTransaction();
             $this->examTimetable->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\ExamTimetable', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
@@ -831,6 +1005,262 @@ class ExamController extends Controller
 
             
         } catch (Throwable $e) {
+            ResponseService::logErrorResponse($e);
+            ResponseService::errorResponse();
+        }
+    }
+
+    public function bulkUploadIndex()
+    {
+        ResponseService::noFeatureThenRedirect('Exam Management');
+    
+        $teacherId = Auth::user()->teacher->user_id;
+    
+        // Fetch classes where the teacher is a class teacher or subject teacher
+        $classes = $this->classSection->builder()
+            ->whereHas('class_teachers', function ($query) use ($teacherId) {
+                $query->where('teacher_id', $teacherId);
+            })
+            ->orWhereHas('subject_teachers', function ($query) use ($teacherId) {
+                $query->where('teacher_id', $teacherId);
+            })
+            ->with('class', 'section', 'medium', 'subjects')
+            ->get();
+        
+        $exams = $this->exam->builder()->with(['timetable' => function ($query) {
+            $query->where('date', '<', date('Y-m-d'))->orWhere(function ($q) {
+                $q->whereDate('date', '=', date('Y-m-d'))->where('end_time', '<=', date('H:i:s'));
+            })->with(['class_subject' => function ($q) {
+                $q->SubjectTeacherClassTeacher()->with(['subject_teacher' => function ($q) {
+                    $q->where('teacher_id', Auth::user()->id)->with('subject');
+                }]);
+            }]);
+        }])->where('publish', 0)->get();
+    
+        return response(view('exams.bulk_upload_marks', compact('classes', 'exams')));
+    }
+    
+    public function downloadSampleFile(Request $request) {
+        ResponseService::noFeatureThenRedirect('Exam Management');
+
+        $validator = Validator::make($request->all(), [
+            'class_section_id'  => 'required|numeric',
+            'exam_id'           => 'required',
+            'class_subject_id'  => 'required',
+        ]);
+        if ($validator->fails()) {
+            ResponseService::errorResponse($validator->errors()->first());
+        }
+
+        try {
+
+            $exam = $this->exam->builder()->with('timetable:id,date')->where('id', $request->exam_id)->first();
+
+            // Get Student ids according to Subject is elective or compulsory
+            $classSubject = $this->classSubject->findById($request->class_subject_id);
+
+          
+            if ($classSubject->type == "Elective") {
+                $studentIds = $this->studentSubject->builder()->where(['class_section_id' => $request->class_section_id, 'class_subject_id' => $classSubject->id])->pluck('student_id');
+            } else {
+                $studentIds = $this->users->builder()->role('Student')->whereHas('student', function ($query) use ($request) {
+                    $query->where('class_section_id', $request->class_section_id);
+                })->pluck('id');
+            }
+                
+            // Get Timetable Data
+            $timetable = $exam->timetable()->where('class_subject_id', $request->class_subject_id)->first();
+
+            // IF Timetable is empty then show error message
+            if (!$timetable) {
+                return response()->json(['error' => true, 'message' => trans('Exam Timetable Does not Exists')]);
+            }
+
+            // IF Exam status is not 2 that is exam not completed then show error message
+            if ($exam->exam_status != 2) {
+                ResponseService::errorResponse('Exam not completed yet');
+            }
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $students = $this->users->builder()->role('Student')->whereIn('id', $studentIds)->with(['exam_marks' => function ($query) use ($timetable) {
+                $query->where('exam_timetable_id', $timetable->id);
+            }])->get();
+            $data = [];
+            // Loop on the Students Data
+            foreach ($students as  $student) {
+                $data[] = [
+                    'exam_marks_id' => $student->exam_marks[0]->id ?? '',
+                    'student_id' => $student->id,
+                    'student_name' => $student->full_name,
+                    'total_marks' => $timetable->total_marks,
+                    'obtained_marks' => $student->exam_marks[0]->obtained_marks ?? '',
+                ];
+            }
+    
+            // Create a file name using Class Section, Exam Name, and Subject Name
+            $classSection = $this->classSection->builder()->with('class', 'class.stream', 'section', 'medium')->where('id', $request->class_section_id)->first()->full_name;
+            $examName = $exam->name;
+            $subjectName = $classSubject->subject->name;
+    
+            $file_name = $classSection . '_' . $examName . '_' . $subjectName . '_marks_bulk_upload.xlsx';
+
+            $file_name = str_replace(['/', '\\'], '-', $file_name);
+            $file_name = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $file_name);
+    
+            return Excel::download(new MarksDataExport($data), $file_name);
+        } catch (Throwable $e) {
+            ResponseService::logErrorResponse($e, 'Exam Controller ---> Download Sample File');
+            ResponseService::errorResponse();
+        }
+    }
+
+    public function storeBulkData(Request $request) {
+        ResponseService::noFeatureThenRedirect('Exam Management');
+
+        $validator = Validator::make($request->all(), [
+            'class_section_id'  => 'required|numeric',
+            'exam_id'           => 'required',
+            'class_subject_id'  => 'required',
+            'file'              => 'required|mimes:csv,txt'
+        ]);
+        if ($validator->fails()) {
+            ResponseService::errorResponse($validator->errors()->first());
+        }
+        try {
+            Excel::import(new MarksDataImport($request->class_section_id, $request->exam_id, $request->class_subject_id), $request->file);
+
+            ResponseService::successResponse('Data Stored Successfully');
+        } catch (ValidationException $e) {
+            ResponseService::errorResponse($e->getMessage());
+        } catch (Throwable $e) {
+            ResponseService::logErrorResponse($e, "Exam Controller -> Store Bulk method");
+            ResponseService::errorResponse();
+        }
+    }
+
+    public function viewMarksindex()
+    {
+        ResponseService::noFeatureThenRedirect('Exam Management');
+        ResponseService::noPermissionThenRedirect('exam-create');
+        $classes = $this->class->all(['*'], ['stream', 'medium', 'stream']);
+        $subjects = $this->subject->builder()->orderBy('id', 'DESC')->get();
+        $session_year_all = $this->sessionYear->all();
+        $mediums = $this->mediums->builder()->pluck('name', 'id');
+        return response(view('exams.view_marks', compact('classes', 'subjects', 'session_year_all', 'mediums')));
+    }
+
+    public function viewMarksShow()
+    {
+        ResponseService::noFeatureThenRedirect('Exam Management');
+        $offset = request('offset', 0);
+        $limit = request('limit', 10);
+        $sort = request('sort', 'id');
+        $order = request('order', 'DESC');
+        $search = request('search');
+        $medium_id = request('medium_id');
+
+        $sql = $this->exam->builder()->with([
+            'class.medium', 'class.stream', 'class.section',
+            'timetable.class_subject','timetable.exam_marks.user.student'
+        ])
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('id', 'LIKE', "%$search%")
+                        ->orWhere('name', 'LIKE', "%$search%")
+                        ->orWhere('description', 'LIKE', "%$search%")
+                        ->orWhere('created_at', 'LIKE', "%" . date('Y-m-d H:i:s', strtotime($search)) . "%")
+                        ->orWhere('updated_at', 'LIKE', "%" . date('Y-m-d H:i:s', strtotime($search)) . "%")
+                        ->orWhereHas('session_year', function ($subQuery) use ($search) {
+                            $subQuery->where('name', 'LIKE', "%$search%");
+                        });
+                });
+            })->when(request('session_year_id') != null, function ($query) {
+            $query->where('session_year_id', request('session_year_id'));
+        })->when($medium_id, function ($query) use ($medium_id) {
+            $query->whereHas('class', function ($q) use ($medium_id) {
+                $q->where('medium_id', $medium_id);
+            });
+        })
+            ->when(!empty($showDeleted), function ($query) {
+                $query->onlyTrashed();
+            });
+
+        $total = $sql->count();
+
+        $sql->orderBy($sort, $order)->skip($offset)->take($limit);
+        $res = $sql->get();
+
+        $bulkData = [];
+        $bulkData['total'] = $total;
+        $rows = [];
+        $no = 1;
+
+        foreach ($res as $row) {
+            $tempRow = $row->toArray();
+            $tempRow['no'] = $no++;
+            $subjectWiseStatus = [];
+            $processedSubjects = []; 
+            $classNameWithSection = [];
+            $classSectionWiseStatus = [];
+          
+            foreach ($row->class->section as $section) {
+                $classNameWithSection = $row->class->name . ' - ' . $section->name . ' '. $row->class->medium->name;
+                if ($row->has_timetable) {
+    
+                    foreach ($row->timetable as $timetable) {
+                        $subject = $timetable->subject_with_name;
+                        $subjectId = $timetable->class_subject_id;
+    
+                        if (isset($processedSubjects[$subjectId])) {
+                            continue;
+                        }
+            
+                        $marks = $timetable->exam_marks->where('user.student.class_section_id', $section->id);
+            
+                        $marksSubmitted = $marks->isNotEmpty();
+                        $status = $marksSubmitted ? 'Submitted' : 'Pending';
+            
+                        $subjectWiseStatus[] = [
+                            'subject_id' => $subjectId,
+                            'subject' => $subject,
+                            'status' => $status,
+                            'marks_count' => $marksSubmitted ? $marks->count() : 0,
+                        ];
+            
+                        $processedSubjects[$subjectId] = true;
+                    }
+
+                    $classSectionWiseStatus[] = [
+                        'class_section_name' =>  $classNameWithSection,
+                        'subject_wise_status' => $subjectWiseStatus,
+                    ];
+                }
+            }
+            $tempRow['classSectionWiseStatus'] =  $classSectionWiseStatus;
+            $tempRow['created_at'] = $row->created_at;
+            $tempRow['updated_at'] = $row->updated_at; 
+            $rows[] = $tempRow;
+           
+        }
+        $bulkData['rows'] = $rows;
+        return response()->json($bulkData);
+    }
+
+    public function getExamByClassId($class_section_id)
+    {
+        ResponseService::noFeatureThenRedirect('Exam Management');
+        try {
+            $class_id = $this->classSection->builder()->where('id', $class_section_id)->pluck('class_id');
+
+            $exams = $this->exam->builder()->where('class_id', $class_id)->with(['timetable' => function ($query) {
+                $query->where('date', '<', date('Y-m-d'))->orWhere(function ($q) {
+                    $q->whereDate('date', '=', date('Y-m-d'))->where('end_time', '<=', date('H:i:s'));
+                });
+            }])->where('publish', 0)->get();
+
+            ResponseService::successResponse('Data Fetched Successfully', $exams);
+        } catch (Throwable $e) {
+          
             ResponseService::logErrorResponse($e);
             ResponseService::errorResponse();
         }

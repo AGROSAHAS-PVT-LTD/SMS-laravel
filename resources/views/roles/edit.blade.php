@@ -26,13 +26,20 @@
                                     {!! Form::text('name', null, ['placeholder' => __('name'), 'class' => 'form-control',$role->name=="Teacher"?"readonly":""]) !!}
                                 </div>
                             </div>
+                            <div class="form-group col-lg-3 col-sm-12 col-xs-12 col-md-3">
+                                <div class="form-check">
+                                    <label class="form-check-label">
+                                        {{ Form::checkbox('selectall', 1, false, ['class' => 'name form-check-input', 'id' => 'selectall']) }}Select all
+                                    </label>
+                                </div>
+                            </div>
                             <div class="col-xs-12 col-sm-12 col-md-12">
                                 <div class="row">
                                     @foreach ($permission as $value)
                                         <div class="form-group col-lg-3 col-sm-12 col-xs-12 col-md-3">
                                             <div class="form-check">
                                                 <label class="form-check-label">
-                                                    {{ Form::checkbox('permission[]', $value->id, in_array($value->id, $rolePermissions), ['class' => 'name form-check-input']) }}
+                                                    {{ Form::checkbox('permission[]', $value->id, in_array($value->id, $rolePermissions), ['class' => 'name form-check-input selectedId']) }}
                                                     {{ $value->name }}
                                                 </label>
                                             </div>
@@ -51,4 +58,26 @@
             </div>
         </div>
     </div>
+@endsection
+
+@section('script')
+    <script>
+        $(document).ready(function () {
+            var check = ($('.selectedId').filter(":checked").length == $('.selectedId').length);
+            $('#selectall').prop("checked", check);
+
+            $('#selectall').click(function () {
+                $('.selectedId').prop('checked', this.checked);
+            });
+    
+            $('.selectedId').change(function () {
+                var check = ($('.selectedId').filter(":checked").length == $('.selectedId').length);
+                $('#selectall').prop("checked", check);
+    
+                if ($('.selectedId').filter(":checked").length === 0) {
+                    $('#selectall').prop("checked", false);
+                }
+            });
+        });
+    </script>
 @endsection

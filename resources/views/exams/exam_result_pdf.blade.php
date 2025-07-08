@@ -103,15 +103,15 @@
                     <th class="text-left">DOB :</th>
                     <td>{{ date($settings['date_format'], strtotime($result->user->dob)) }}</td>
                     <th class="text-left">GR No. :</th>
-                    <td>{{ $result->user->student->admission_no }}</td>
+                    <td>{{ $result->user->student->admission_no ?? 'N/A' }}</td>
                 </tr>
                 <tr>
                     <th class="text-left">Guardian Name :</th>
-                    <td>{{ $result->user->student->guardian->full_name }}</td>
+                    <td>{{ $result->user->student->guardian->full_name ?? 'N/A' }}</td>
                     <th class="text-left">Class :</th>
-                    <td>{{ $result->user->student->class_section->full_name }}</td>
+                    <td>{{ $result->user->student->class_section->full_name ?? 'N/A' }}</td>
                     <th class="text-left">Roll No. :</th>
-                    <td>{{ $result->user->student->roll_number }}</td>
+                    <td>{{ $result->user->student->roll_number ?? 'N/A' }}</td>
                 </tr>
             </table>
         </div>

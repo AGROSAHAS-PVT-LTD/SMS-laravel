@@ -19,6 +19,7 @@
                             {{ __('Create Exams') }}
                         </h4>
                         <form class="pt-3 mt-6 add-exam-form create-form" data-success-function="formSuccessFunction" method="POST" action="{{ url('exams') }}">
+                            {!! Form::hidden('user_id', Auth::user()->id, ['id' => 'user_id']) !!}
                             <div class="row">
                                 <div class="form-group col-sm-12 col-md-12 col-lg-4">
                                     <label>{{ __('Exam Name') }} <span class="text-danger">*</span></label>
@@ -114,6 +115,7 @@
                                 <th scope="col" data-events="tableDescriptionEvents" data-formatter="descriptionFormatter" data-field="description" data-sortable="true">{{ __('description') }}</th>
                                 <th scope="col" data-field="class.full_name">{{ __('Class') }}</th>
                                 <th scope="col" data-field="has_timetable" data-formatter="yesAndNoStatusFormatter">{{ __('timetable_created') }}</th>
+                                <th scope="col" data-field="classSectionWiseStatus" data-formatter="classSectionSubmissionStatus">{{ __('class_section_submission_status') }}</th>
                                 <th scope="col" data-field="publish" data-sortable="true" data-formatter="yesAndNoStatusFormatter">{{ __('Publish Result') }}</th>
                                 <th scope="col" data-field="created_at" data-formatter="dateTimeFormatter" data-sortable="true" data-visible="false">{{ __('created_at') }}</th>
                                 <th scope="col" data-field="updated_at" data-formatter="dateTimeFormatter" data-sortable="true" data-visible="false">{{ __('updated_at') }}</th>

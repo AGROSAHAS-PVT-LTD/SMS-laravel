@@ -110,6 +110,25 @@
 
 @section('script')
     <script>
+        $(document).ready(function() {
+        
+            function checkTableRows() {
+                var rowCount = $('#table_list tbody tr:not(.no-records-found)').length;
+                
+                if (rowCount === 0) {
+                    $('#reorder').addClass('d-none');
+                } else {
+                    $('#reorder').removeClass('d-none');
+                }
+            }
+            
+            checkTableRows();
+        
+            $('#table_list').on('load-success.bs.table', function() {
+                checkTableRows();
+            });
+        });
+
         $(document).ready(function () {
             $('.sections_data').repeater({
                 show: function () {
@@ -126,6 +145,7 @@
         $(function () {
             $('#table_list').bootstrapTable()
             $('#reorder').click(function () {
+                
                 let idByOrder = JSON.stringify($('#table_list').bootstrapTable('getData').map((row) => row.id));
                 let data = new FormData();
                 data.append('ids', idByOrder);

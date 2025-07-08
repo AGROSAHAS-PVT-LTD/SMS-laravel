@@ -22,10 +22,14 @@ use TypeError;
 use App\Exports\TeacherDataExport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\TeacherImport;
+use App\Repositories\ExtraFormField\ExtraFormFieldsInterface;
+use App\Repositories\FormField\FormFieldsInterface;
+use App\Services\SessionYearsTrackingsService;
 use Illuminate\Validation\ValidationException;
 use App\Repositories\PayrollSetting\PayrollSettingInterface;
 use App\Repositories\StaffSalary\StaffSalaryInterface;
 use App\Services\UserService;
+use Illuminate\Http\UploadedFile;
 
 class TeacherController extends Controller {
     private UserInterface $user;
@@ -35,9 +39,12 @@ class TeacherController extends Controller {
     private SubscriptionService $subscriptionService;
     private PayrollSettingInterface $payrollSetting;
     private StaffSalaryInterface $staffSalary;
+    private FormFieldsInterface $formFields;
+    private ExtraFormFieldsInterface $extraFormFields;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
 
-    public function __construct(StaffInterface $staff, UserInterface $user, SubscriptionInterface $subscription, CachingService $cache, SubscriptionService $subscriptionService, PayrollSettingInterface $payrollSetting, StaffSalaryInterface $staffSalary) {
+    public function __construct(StaffInterface $staff, UserInterface $user, SubscriptionInterface $subscription, CachingService $cache, SubscriptionService $subscriptionService, PayrollSettingInterface $payrollSetting, StaffSalaryInterface $staffSalary, FormFieldsInterface $formFields, ExtraFormFieldsInterface $extraFormFields, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->user = $user;
         $this->staff = $staff;
         $this->subscription = $subscription;
@@ -45,6 +52,9 @@ class TeacherController extends Controller {
         $this->subscriptionService = $subscriptionService;
         $this->payrollSetting = $payrollSetting;
         $this->staffSalary = $staffSalary;
+        $this->formFields = $formFields;
+        $this->extraFormFields = $extraFormFields;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index() {
@@ -53,7 +63,12 @@ class TeacherController extends Controller {
         $allowances = $this->payrollSetting->builder()->where('type', 'allowance')->get();
         $deductions = $this->payrollSetting->builder()->where('type', 'deduction')->get();
 
-        return view('teacher.index',compact('allowances', 'deductions'));
+        if(Auth::user()->school_id) {
+            $extraFields = $this->formFields->defaultModel()->where('user_type', 2)->orderBy('rank')->get();    
+        } else {
+            $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+        }
+        return view('teacher.index',compact('allowances', 'deductions','extraFields'));
     }
 
     public function store(Request $request) {
@@ -69,6 +84,7 @@ class TeacherController extends Controller {
             'current_address'   => 'required',
             'permanent_address' => 'required',
             'status'            => 'nullable|in:0,1',
+            'image'             => 'nullable|image|mimes:jpeg,png,jpg,svg,gif,webp',
         ]);
         try {
             DB::beginTransaction();
@@ -105,13 +121,36 @@ class TeacherController extends Controller {
                 'password'          => Hash::make($request->mobile),
                 'image'             => $request->file('image'),
                 'status'            => $request->status ?? 0,
-                'deleted_at'        => $request->status == 1 ? null : '1970-01-01 01:00:00'
+                'deleted_at'        => $request->status == 1 ? null : '1970-01-01 01:00:00',
+                'two_factor_enabled' => 0,
+                'two_factor_secret' => null,
+                'two_factor_expires_at' => null,
             );
 
             //Call store function of User Repository and get the User Data
             $user = $this->user->create($user_data);
 
             $user->assignRole('Teacher');
+
+            // Store Extra Details
+            $extraDetails = array();
+            if (isset($request->extra_fields) && is_array($request->extra_fields)) {
+                foreach ($request->extra_fields as $fields) {
+                    $data = null;
+                    if (isset($fields['data'])) {
+                        $data = (is_array($fields['data']) ? json_encode($fields['data'], JSON_THROW_ON_ERROR) : $fields['data']);
+                    }
+                    $extraDetails[] = array(
+                        'user_id'       => $user->id,
+                        'form_field_id' => $fields['form_field_id'],
+                        'data'          => $data,
+                    );
+                }
+            }
+
+            if (!empty($extraDetails)) {
+                $this->extraFormFields->createBulk($extraDetails);
+            }
 
             $staff = $this->staff->create([
                 'user_id'       => $user->id,
@@ -156,13 +195,19 @@ class TeacherController extends Controller {
                 $this->staffSalary->upsert($deduction_data,['staff_id','payroll_setting_id'],['amount','percentage']);
             }
 
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            if($sessionYear){
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Teacher', $user->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
+
             DB::commit();
             $sendEmail = app(UserService::class);
             $sendEmail->sendStaffRegistrationEmail($user, $request->mobile);
-            
+            DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
             if (Str::contains($e->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                DB::commit();
                 ResponseService::warningResponse("Teacher Registered successfully. But Email not sent.");
             } else {
                 DB::rollback();
@@ -180,7 +225,7 @@ class TeacherController extends Controller {
         $order = request('order', 'DESC');
         $search = request('search');
         $showDeleted = request('show_deactive');
-        $sql = $this->user->builder()->role('Teacher')->with('staff','staff.staffSalary')
+        $sql = $this->user->builder()->role('Teacher')->with('staff','staff.staffSalary','extra_student_details.form_field')
             ->where(function ($query) use ($search) {
                 $query->when($search, function ($query) use ($search) {
                 $query->where('id', 'LIKE', "%$search%")
@@ -270,8 +315,45 @@ class TeacherController extends Controller {
                 $user_data['password'] = Hash::make($request->mobile);
             }
 
+            if ($request->two_factor_verification == 1) {
+                $user_data['two_factor_secret'] = null;
+                $user_data['two_factor_expires_at'] = null;
+                $user_data['two_factor_enabled'] = 1;
+            } else {
+                $user_data['two_factor_secret'] = null;
+                $user_data['two_factor_expires_at'] = null;
+                $user_data['two_factor_enabled'] = 0;
+            }
+
             //Call store function of User Repository and get the User Data
             $user = $this->user->update($id, $user_data);
+
+            // Store Extra Details
+            $extraDetails = [];
+            foreach ($request->extra_fields ?? [] as $fields) {
+                if ($fields['input_type'] == 'file') {
+                    if (isset($fields['data']) && $fields['data'] instanceof UploadedFile) {
+                        $extraDetails[] = array(
+                            'id'            => $fields['id'],
+                            'user_id'    => $user->id,
+                            'form_field_id' => $fields['form_field_id'],
+                            'data'          => $fields['data']
+                        );
+                    }
+                } else {
+                    $data = null;
+                    if (isset($fields['data'])) {
+                        $data = (is_array($fields['data']) ? json_encode($fields['data'], JSON_THROW_ON_ERROR) : $fields['data']);
+                    }
+                    $extraDetails[] = array(
+                        'id'            => $fields['id'],
+                        'user_id'    => $user->id,
+                        'form_field_id' => $fields['form_field_id'],
+                        'data'          => $data,
+                    );
+                }
+            }
+            $this->extraFormFields->upsert($extraDetails, ['id'], ['data']);
 
             //Call store function of User Repository and get the User Data
             $this->staff->update($user->staff->id, array('qualification' => $request->qualification, 'salary' => $request->salary,'joining_date'   => date('Y-m-d',strtotime($request->joining_date))));
@@ -375,7 +457,7 @@ class TeacherController extends Controller {
             ResponseService::errorResponse($validator->errors()->first());
         }
         try {
-            Excel::import(new TeacherImport, $request->file('file'));
+            Excel::import(new TeacherImport($request->is_send_notification), $request->file('file'));
             ResponseService::successResponse('Data Stored Successfully');
         } catch (ValidationException $e) {
             ResponseService::errorResponse($e->getMessage());

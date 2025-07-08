@@ -47,11 +47,28 @@
                                         <label for="">{{ __('name') }} <span class="text-danger">*</span></label>
                                         {!! Form::text('name', null, ['required','class' => 'form-control','placeholder' => __('name')]) !!}
                                     </div>
-                                    <div class="form-group col-sm-12 col-md-6">
+                                    <div class="form-group col-sm-12 col-md-12">
+                                        <label for="">{{ __('Amount_Type') }} <span class="text-danger">*</span></label>
+                                        <div class="col-12 d-flex row">
+                                            <div class="form-check form-check-inline">
+                                                <label class="form-check-label">
+                                                    <input type="radio" class="form-check-input amount-type-radio" checked name="amount_type" value="fixed" required="required">
+                                                    {{ __('Fixed') }}
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <label class="form-check-label">
+                                                    <input type="radio" class="form-check-input amount-type-radio" name="amount_type" value="percentage" required="required">
+                                                    {{ __('Percentage') }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-sm-12 col-md-6 fixed-amount-field">
                                         <label for="">{{ __('fixed_amount') }}</label>
                                         {!! Form::number('amount', null, ['class' => 'form-control','placeholder' => __('fixed_amount'), 'min' => '1']) !!}
                                     </div>
-                                    <div class="form-group col-sm-12 col-md-6">
+                                    <div class="form-group col-sm-12 col-md-6 percentage-field" style="display: none;">
                                         <label for="">{{ __('percentage') }}</label>
                                         {!! Form::number('percentage', null, ['class' => 'form-control','placeholder' => __('percentage'), 'min' => '0.1', 'max' => '100']) !!}
                                     </div>
@@ -149,6 +166,23 @@
                                         <label for="">{{ __('name') }} <span class="text-danger">*</span></label>
                                         {!! Form::text('name', null, ['required','class' => 'form-control','placeholder' => __('name'), 'id' => 'name']) !!}
                                     </div>
+                                    <div class="form-group col-sm-12 col-md-12">
+                                        <label for="">{{ __('Amount_Type') }} <span class="text-danger">*</span></label>
+                                        <div class="col-12 d-flex row">
+                                            <div class="form-check form-check-inline">
+                                                <label class="form-check-label">
+                                                    <input type="radio" class="form-check-input" checked name="amount_type" value="fixed" required="required">
+                                                    {{ __('Fixed') }}
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <label class="form-check-label">
+                                                    <input type="radio" class="form-check-input" name="amount_type" value="percentage" required="required">
+                                                    {{ __('Percentage') }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="form-group col-sm-12 col-md-12" id="amount-div" style="display: none">
                                         <label for="">{{ __('fixed_amount') }}</label>
                                         {!! Form::number('amount', null, ['class' => 'form-control','placeholder' => __('fixed_amount'), 'id' => 'amount', 'min' => '1']) !!}
@@ -171,4 +205,31 @@
         
     </div>
 @endsection
-        
+
+@section('js')
+    <script>
+        $(document).ready(function() {
+            // Handle radio button change in create form
+            $('.amount-type-radio').change(function() {
+                if($(this).val() === 'fixed') {
+                    $('.fixed-amount-field').show();
+                    $('.percentage-field').hide();
+                } else {
+                    $('.fixed-amount-field').hide();
+                    $('.percentage-field').show();
+                }
+            });
+            
+            // For the edit modal
+            $('input[name="amount_type"]').change(function() {
+                if ($(this).val() === 'fixed') {
+                    $('#amount-div').show();
+                    $('#percentage-div').hide();
+                } else {
+                    $('#amount-div').hide();
+                    $('#percentage-div').show();
+                }
+            });
+        });
+    </script>
+@endsection

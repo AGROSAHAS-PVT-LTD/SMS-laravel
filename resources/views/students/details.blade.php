@@ -208,94 +208,96 @@
 
                                     {{-- Loop the FormData --}}
                                     @foreach ($extraFields as $key => $data)
-                                        @php $fieldName = str_replace(' ', '_', $data->name) @endphp
-                                        {{-- Edit Extra Details ID --}}
-                                        {{ Form::hidden('extra_fields['.$key.'][id]', '', ['id' => $fieldName.'_id']) }}
+                                        @if($data->user_type == 1)
+                                            @php $fieldName = str_replace(' ', '_', $data->name) @endphp
+                                            {{-- Edit Extra Details ID --}}
+                                            {{ Form::hidden('extra_fields['.$key.'][id]', '', ['id' => $fieldName.'_id']) }}
 
-                                        {{-- Form Field ID --}}
-                                        {{ Form::hidden('extra_fields['.$key.'][form_field_id]', $data->id) }}
+                                            {{-- Form Field ID --}}
+                                            {{ Form::hidden('extra_fields['.$key.'][form_field_id]', $data->id) }}
 
-                                        {{-- FormFieldType --}}
-                                        {{ Form::hidden('extra_fields['.$key.'][input_type]', $data->type) }}
+                                            {{-- FormFieldType --}}
+                                            {{ Form::hidden('extra_fields['.$key.'][input_type]', $data->type) }}
 
-                                        <div class='form-group col-md-12 col-lg-6 col-xl-4 col-sm-12'>
+                                            <div class='form-group col-md-12 col-lg-6 col-xl-4 col-sm-12'>
 
-                                            {{-- Add lable to all the elements excluding checkbox --}}
-                                            @if($data->type != 'radio' && $data->type != 'checkbox')
-                                                <label>{{$data->name}} @if($data->is_required)
-                                                        <span class="text-danger">*</span>
-                                                    @endif</label>
-                                            @endif
+                                                {{-- Add lable to all the elements excluding checkbox --}}
+                                                @if($data->type != 'radio' && $data->type != 'checkbox')
+                                                    <label>{{$data->name}} @if($data->is_required)
+                                                            <span class="text-danger">*</span>
+                                                        @endif</label>
+                                                @endif
 
-                                            {{-- Text Field --}}
-                                            @if($data->type == 'text')
-                                                {{ Form::text('extra_fields['.$key.'][data]', '', ['class' => 'form-control text-fields', 'id' => $fieldName, 'placeholder' => $data->name, ($data->is_required == 1 ? 'required' : '')]) }}
-                                                {{-- Number Field --}}
-                                            @elseif($data->type == 'number')
-                                                {{ Form::number('extra_fields['.$key.'][data]', '', ['min' => 0, 'class' => 'form-control number-fields', 'id' => $fieldName, 'placeholder' => $data->name, ($data->is_required == 1 ? 'required' : '')]) }}
+                                                {{-- Text Field --}}
+                                                @if($data->type == 'text')
+                                                    {{ Form::text('extra_fields['.$key.'][data]', '', ['class' => 'form-control text-fields', 'id' => $fieldName, 'placeholder' => $data->name, ($data->is_required == 1 ? 'required' : '')]) }}
+                                                    {{-- Number Field --}}
+                                                @elseif($data->type == 'number')
+                                                    {{ Form::number('extra_fields['.$key.'][data]', '', ['min' => 0, 'class' => 'form-control number-fields', 'id' => $fieldName, 'placeholder' => $data->name, ($data->is_required == 1 ? 'required' : '')]) }}
 
-                                                {{-- Dropdown Field --}}
-                                            @elseif($data->type == 'dropdown')
-                                                {{ Form::select(
-                                                    'extra_fields['.$key.'][data]',$data->default_values,
-                                                    null,
-                                                    [
-                                                        'id' => $fieldName,
-                                                        'class' => 'form-control select-fields',
-                                                        ($data->is_required == 1 ? 'required' : ''),
-                                                        'placeholder' => 'Select '.$data->name
-                                                    ]
-                                                )}}
+                                                    {{-- Dropdown Field --}}
+                                                @elseif($data->type == 'dropdown')
+                                                    {{ Form::select(
+                                                        'extra_fields['.$key.'][data]',$data->default_values,
+                                                        null,
+                                                        [
+                                                            'id' => $fieldName,
+                                                            'class' => 'form-control select-fields',
+                                                            ($data->is_required == 1 ? 'required' : ''),
+                                                            'placeholder' => 'Select '.$data->name
+                                                        ]
+                                                    )}}
 
-                                                {{-- Radio Field --}}
-                                            @elseif($data->type == 'radio')
-                                                <label class="d-block">{{$data->name}} @if($data->is_required)
-                                                        <span class="text-danger">*</span>
-                                                    @endif</label>
-                                                <div class="row form-check-inline ml-1">
-                                                    @foreach ($data->default_values as $keyRadio => $value)
-                                                        <div class="col-md-12 col-lg-12 col-xl-6 col-sm-12 form-check">
-                                                            <label class="form-check-label">
-                                                                {{ Form::radio('extra_fields['.$key.'][data]', $value, null, ['id' => $fieldName.'_'.$keyRadio, 'class' => 'radio-fields',($data->is_required == 1 ? 'required' : '')]) }}
-                                                                {{$value}}
-                                                            </label>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
+                                                    {{-- Radio Field --}}
+                                                @elseif($data->type == 'radio')
+                                                    <label class="d-block">{{$data->name}} @if($data->is_required)
+                                                            <span class="text-danger">*</span>
+                                                        @endif</label>
+                                                    <div class="row form-check-inline ml-1">
+                                                        @foreach ($data->default_values as $keyRadio => $value)
+                                                            <div class="col-md-12 col-lg-12 col-xl-6 col-sm-12 form-check">
+                                                                <label class="form-check-label">
+                                                                    {{ Form::radio('extra_fields['.$key.'][data]', $value, null, ['id' => $fieldName.'_'.$keyRadio, 'class' => 'radio-fields',($data->is_required == 1 ? 'required' : '')]) }}
+                                                                    {{$value}}
+                                                                </label>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
 
-                                                {{-- Checkbox Field --}}
-                                            @elseif($data->type == 'checkbox')
-                                                <label class="d-block">{{$data->name}} @if($data->is_required)
-                                                        <span class="text-danger">*</span>
-                                                    @endif</label>
-                                                <div class="row form-check-inline ml-1">
-                                                    @foreach ($data->default_values as $chkKey => $value)
-                                                        <div class="col-lg-12 col-xl-6 col-md-12 col-sm-12 form-check">
-                                                            <label class="form-check-label">
-                                                                {{ Form::checkbox('extra_fields['.$key.'][data][]', $value, null, ['id' => $fieldName.'_'.$chkKey, 'class' => 'form-check-input chkclass checkbox-fields',($data->is_required == 1 ? 'required' : '')]) }} {{ $value }}
-                                                            </label>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
+                                                    {{-- Checkbox Field --}}
+                                                @elseif($data->type == 'checkbox')
+                                                    <label class="d-block">{{$data->name}} @if($data->is_required)
+                                                            <span class="text-danger">*</span>
+                                                        @endif</label>
+                                                    <div class="row form-check-inline ml-1">
+                                                        @foreach ($data->default_values as $chkKey => $value)
+                                                            <div class="col-lg-12 col-xl-6 col-md-12 col-sm-12 form-check">
+                                                                <label class="form-check-label">
+                                                                    {{ Form::checkbox('extra_fields['.$key.'][data][]', $value, null, ['id' => $fieldName.'_'.$chkKey, 'class' => 'form-check-input chkclass checkbox-fields',($data->is_required == 1 ? 'required' : '')]) }} {{ $value }}
+                                                                </label>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
 
-                                                {{-- Textarea Field --}}
-                                            @elseif($data->type == 'textarea')
-                                                {{ Form::textarea('extra_fields['.$key.'][data]', '', ['placeholder' => $data->name, 'id' => $fieldName, 'class' => 'form-control textarea-fields', ($data->is_required ? 'required' : '') , 'rows' => 3]) }}
+                                                    {{-- Textarea Field --}}
+                                                @elseif($data->type == 'textarea')
+                                                    {{ Form::textarea('extra_fields['.$key.'][data]', '', ['placeholder' => $data->name, 'id' => $fieldName, 'class' => 'form-control textarea-fields', ($data->is_required ? 'required' : '') , 'rows' => 3]) }}
 
-                                                {{-- File Upload Field --}}
-                                            @elseif($data->type == 'file')
-                                                <div class="input-group col-xs-12">
-                                                    {{ Form::file('extra_fields['.$key.'][data]', ['class' => 'file-upload-default', 'id' => $fieldName]) }}
-                                                    {{ Form::text('', '', ['class' => 'form-control file-upload-info', 'disabled' => '', 'placeholder' => __('image')]) }}
-                                                    <span class="input-group-append">
-                                                        <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
-                                                    </span>
-                                                </div>
-                                                <div id="file_div_{{$fieldName}}" class="mt-2 d-none file-div">
-                                                    <a href="" id="file_link_{{$fieldName}}" target="_blank">{{$data->name}}</a>
-                                                </div>
-                                            @endif
-                                        </div>
+                                                    {{-- File Upload Field --}}
+                                                @elseif($data->type == 'file')
+                                                    <div class="input-group col-xs-12">
+                                                        {{ Form::file('extra_fields['.$key.'][data]', ['class' => 'file-upload-default', 'id' => $fieldName]) }}
+                                                        {{ Form::text('', '', ['class' => 'form-control file-upload-info', 'disabled' => '', 'placeholder' => __('image')]) }}
+                                                        <span class="input-group-append">
+                                                            <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
+                                                        </span>
+                                                    </div>
+                                                    <div id="file_div_{{$fieldName}}" class="mt-2 d-none file-div">
+                                                        <a href="" id="file_link_{{$fieldName}}" target="_blank">{{$data->name}}</a>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endif
                                     @endforeach
                                 </div>
                             @endif

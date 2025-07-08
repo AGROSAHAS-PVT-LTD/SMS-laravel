@@ -20,6 +20,10 @@ class ClassSection extends Model {
     public function class() {
         return $this->belongsTo(ClassSchool::class)->withTrashed();
     }
+    
+    public function shift() {
+        return $this->belongsTo(Shift::class)->withTrashed();
+    }
 
     public function section() {
         return $this->belongsTo(Section::class)->withTrashed();
@@ -75,7 +79,7 @@ class ClassSection extends Model {
 
 
     public function scopeOwner($query) {
-        if (Auth::user()->school_id) {
+        if (Auth::user() && Auth::user()->school_id) {
             if (Auth::user()->hasRole('School Admin')) {
                 return $query->where('school_id', Auth::user()->school_id);
             }
@@ -96,7 +100,7 @@ class ClassSection extends Model {
             }
             return $query->where('school_id', Auth::user()->school_id);
         }
-        if (!Auth::user()->school_id) {
+        if (Auth::user() && !Auth::user()->school_id) {
             if (Auth::user()->hasRole('Super Admin')) {
                 return $query;
             }
@@ -135,6 +139,19 @@ class ClassSection extends Model {
         if ($this->relationLoaded('medium')) {
             $name .= ' - ' . $this->medium->name;
         }
+        if ($this->relationLoaded('class') && $this->class->relationLoaded('shift')) {
+            $name .= isset($this->class->shift->name) ? ' ( ' . $this->class->shift->name . ' ) ' : '';
+        }
         return $name;
+    }
+
+    /**
+     * Get the class_subject that owns the ClassSection
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
+    public function class_subject()
+    {
+        return $this->belongsTo(ClassSubject::class, 'class_id', 'class_id');
     }
 }

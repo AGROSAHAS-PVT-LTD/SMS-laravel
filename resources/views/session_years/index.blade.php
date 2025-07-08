@@ -15,6 +15,9 @@
         <div class="row">
             <div class="col-lg-12 grid-margin stretch-card">
                 <div class="card">
+                    <span class="text-danger mt-4 ml-4">
+                        {{ __('note If you change the session year the chat history will be deleted') }}
+                    </span>
                     <div class="card-body">
                         <h4 class="card-title">
                             {{ __('Create Session Years') }}

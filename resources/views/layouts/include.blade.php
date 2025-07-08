@@ -23,10 +23,9 @@
 
 <link rel="stylesheet" href="{{ asset('/assets/css/comman.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/datepicker.min.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/daterangepicker.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/ekko-lightbox.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/jquery.tagsinput.min.css') }}">
-
-
 
 {{--<link rel="stylesheet" href="{{ asset('/assets/bootstrap-table/bootstrap-table.min.css') }}">--}}
 <link rel="stylesheet" href="https://unpkg.com/bootstrap-table@1.22.1/dist/bootstrap-table.min.css">
@@ -46,6 +45,25 @@
 <style>
     :root {
         --theme-color: <?=$systemSettings['theme_color']??"#22577A" ?>;
+    }
+    /* Custom styles for sidebar sub-categories */
+    .sub-category {
+        padding: 10px 0 5px 15px;
+        font-weight: bold;
+        color: #6c7293;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        margin-top: 10px;
+        border-left: 3px solid #3e4b5b;
+    }
+    .nav-item.pl-3 .nav-link {
+        padding-left: 15px !important;
+        font-size: 0.85rem;
+    }
+    .nav-item.pl-3 .nav-link i.small-icon {
+        font-size: 8px;
+        margin-right: 5px;
+        vertical-align: middle;
     }
 </style>
 <script>

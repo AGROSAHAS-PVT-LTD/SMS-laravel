@@ -640,15 +640,15 @@ a {
 
 @media screen and (max-width: 767px) {
   .events .eventsCardWrapper .card .rightArr {
-    top: auto;
-    bottom: 2px;
+    /* top: auto; */
+    /* bottom: 2px; */
     padding: 3px 10px;
   }
 }
 
 @media screen and (max-width: 575px) {
   .events .eventsCardWrapper .card .rightArr {
-    bottom: 6px;
+    /* bottom: 6px; */
   }
 }
 
@@ -1830,11 +1830,15 @@ body.modal-open {
   mask: url('/assets/school/images/ctcaImg.svg');
   mask-repeat: no-repeat;
   mask-size: 100% 100%;
+  margin-top: 20px;
 }
 
 .ctcaSection .imgBg img {
   width: 100%;
-  height: 100%;
+  height: 200px;
+  /* max-height: 200px; */
+  object-fit: cover;
+  /* margin-top: 20px; */
 }
 
 .ctcaSection .card .cardDetails {
@@ -2773,12 +2777,41 @@ button:hover .hover-btn {
   transform: translate(0%, 0%);
 }
 
-.linksWrapper span a:hover, .menuListWrapper ul li a:hover {
+.linksWrapper span a:hover,
+.menuListWrapper ul li a:hover {
   color: var(--secondary-color2) !important;
 }
+
 footer .infoDivWrapper:hover .iconWrapper {
   background-color: var(--secondary-color2);
 }
+
 footer .infoDivWrapper:hover .iconDiv {
   border-color: var(--secondary-color2);
+}
+
+.announcement-title {
+  /* width: 90%; */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.announcement-desc {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.programImg {
+  height: 250px;
+  object-fit: cover;
+}
+
+@media (max-width: 360px) {
+  .announcement-title {
+    max-width: 200px;
+  }
 }

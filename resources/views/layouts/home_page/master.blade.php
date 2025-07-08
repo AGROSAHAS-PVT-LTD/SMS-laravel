@@ -16,6 +16,10 @@
 <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
+    <meta property="og:title" content="{{ $systemSettings['system_name'] ?? 'eSchool - Saas' }}">
+    <meta property="og:image" content="{{ $systemSettings['horizontal_logo'] ?? asset('assets/home_page/images/logo.png') }}">
+    <meta property="og:url" content="{{ url('/') }}">
+    <meta property="og:description" content="{{ $systemSettings['tag_line'] ?? 'eSchool - Saas' }}">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>@yield('title')
         {{-- {{ config('app.name') }} --}}

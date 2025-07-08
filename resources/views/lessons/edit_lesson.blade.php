@@ -27,8 +27,8 @@
                             <div class="row">
                                 <div class="form-group col-sm-12 col-md-6">
                                     <label>{{ __('Class') . ' ' . __('section') }} <span class="text-danger">*</span></label>
-                                    <select name="" id="class-section-id" class="class_section_id form-control">
-                                        <option value="">--{{ __('select') }}--</option>
+                                    <select name="class_section_id[]" id="class-section-id" class="class_section_id form-control select2-dropdown select2-hidden-accessible" multiple>
+                                        {{-- <option value="">{{ __('Select Class Section') }}</option> --}}
                                         @foreach ($class_section as $section)
                                             <option value="{{ $section->id }}" data-class="{{ $section->class->id }}">
                                                 {{ $section->full_name }}
@@ -44,7 +44,7 @@
                                         <option value="">-- {{ __('Select Subject') }} --</option>
                                         <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
                                         @foreach ($subjectTeachers as $item)
-                                            <option value="{{ $item->class_subject_id }}" data-class-section="{{ $item->class_section_id }}">{{ $item->subject_with_name}}</option>
+                                            <option value="{{ $item->class_subject_id }}" data-class-section="{{ $item->class_section_id }}" data-user="{{ Auth::user()->id }}">{{ $item->subject_with_name}}</option>
                                         @endforeach
                                     </select>
                                     {!! Form::hidden('class_subject_id',"", ["id" => "class_subject_id_value"]) !!}
@@ -75,6 +75,7 @@
                                                 <option value="file_upload">{{ __('file_upload') }}</option>
                                                 <option value="youtube_link">{{ __('youtube_link') }}</option>
                                                 <option value="video_upload">{{ __('video_upload') }}</option>
+                                                <option value="other_link">{{ __('other_link') }}</option>
                                             </select>
                                         </div>
                                         <div class="form-group col-xl-3" id="file_name_div" style="display: none">
@@ -123,7 +124,7 @@
     <script>
         $(document).ready(function () {
             setTimeout(() => {
-                $('#class-section-id').val({{ $lesson->class_section_id }}).trigger('change').attr('disabled',true)
+            $('#class-section-id').val({{ $lesson->class_section_id }}).trigger('change').attr('disabled',false)
             $('#class_section_id_value').val({{ $lesson->class_section_id }})
             $('#class-subject-id').val({{ $lesson->class_subject_id }}).trigger('change').attr('disabled',true)
             $('#class_subject_id_value').val({{ $lesson->class_subject_id }})

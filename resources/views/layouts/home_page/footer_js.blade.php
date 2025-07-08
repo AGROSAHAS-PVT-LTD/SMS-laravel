@@ -198,3 +198,9 @@
     });
     @endif
 </script>
+<script>
+    var baseUrl = "{{ URL::to('/') }}";
+    const onErrorImage = (e) => {
+        e.target.src = "{{ asset('/assets/no_image_available.jpg') }}";
+    };
+</script>

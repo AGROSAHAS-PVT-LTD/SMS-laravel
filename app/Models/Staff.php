@@ -12,7 +12,10 @@ class Staff extends Model {
         'user_id',
         'qualification',
         'salary',
-        'joining_date'
+        'joining_date',
+        'session_year_id',
+        'join_session_year_id',
+        'leave_session_year_id'
     ];
     protected $hidden = ['created_at','updated_at'];
 
@@ -75,6 +78,12 @@ class Staff extends Model {
     {
         return $this->hasMany(StaffSalary::class, 'staff_id','id');
     }
+
+    public function extra_user_datas()
+    {
+        return $this->hasMany(ExtraStudentData::class, 'user_id');
+    }
+    
 //    public function scopeTeachers($query)
 //    {
 //        if (Auth::user()->hasRole('Teacher')) {

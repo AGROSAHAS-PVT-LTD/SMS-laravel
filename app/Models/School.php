@@ -23,7 +23,9 @@ class School extends Model
         'status',
         'domain',
         'database_name',
-        'code'
+        'code',
+        'type',
+        'domain_type'
     ];
 
     protected $hidden = ['database_name'];
@@ -57,6 +59,11 @@ class School extends Model
 
     public function test() {
         return $this->features->merge($this->addon);
+    }
+
+    public function extra_school_details()
+    {
+        return $this->hasMany(ExtraSchoolData::class, 'school_id', 'id'); 
     }
 
 

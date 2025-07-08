@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\Route;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
+/**
+ * Webhook Routes
+ **/
 Route::post('subscription/webhook/stripe', [SubscriptionWebhookController::class, 'stripe']);
 Route::post('subscription/webhook/razorpay', [SubscriptionWebhookController::class, 'razorpay']);
 
@@ -27,8 +31,9 @@ Route::post('subscription/webhook/razorpay', [SubscriptionWebhookController::cla
 
 Route::group(['middleware' => 'APISwitchDatabase'], static function () {
     Route::post('logout', [ApiController::class, 'logout']);
+   
 });
-
+Route::get('fees-due-notification',[ApiController::class, 'sendFeeNotification']);
 /**
  * STUDENT APIs
  **/
@@ -273,14 +278,16 @@ Route::group(['prefix' => 'staff'], static function () {
 Route::get('settings', [ApiController::class, 'getSettings']);
 Route::post('forgot-password', [ApiController::class, 'forgotPassword']);
 
+Route::get('school-details',[ApiController::class, 'schoolDetails']);
+
 // Route::group(['middleware' => ['auth:sanctum',]], static function () {
 Route::group(['middleware' => ['APISwitchDatabase',]], static function () {
     Route::get('school-settings', [ApiController::class, 'getSchoolSettings']);
     Route::get('holidays', [ApiController::class, 'getHolidays']);
     Route::post('change-password', [ApiController::class, 'changePassword']);
 //    Route::get('test', [ApiController::class, 'getPaymentMethod']);
-    Route::get('payment-confirmation', [ApiController::class, 'getPaymentConfirmation']);
-    Route::get('payment-transactions', [ApiController::class, 'getPaymentTransactions']);
+    Route::get('payment-confirmation', [ApiController::class, 'getPaymentConfirmation'])->name('payment-confirmation');
+    Route::get('payment-transactions', [ApiController::class, 'getPaymentTransactions'])->name('payment-transactions');
     Route::get('gallery', [ApiController::class, 'getGallery']);
     Route::get('session-years', [ApiController::class, 'getSessionYear']);
 //    Route::get('features', [ApiController::class, 'getFeatures']);
@@ -313,7 +320,5 @@ Route::group(['middleware' => ['APISwitchDatabase',]], static function () {
     Route::get('users/chat/history', [ApiController::class, 'usersChatHistory']);
 
     Route::post('class-section/teachers', [ApiController::class, 'classSectionTeachers']);
-    
-
     
 });

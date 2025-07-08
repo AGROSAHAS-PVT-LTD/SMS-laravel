@@ -4,12 +4,12 @@
 @endphp
 @if($lang)
     @if ($lang->is_rtl)
-        <html lang="en" dir="rtl">
+        <html lang="{{ $lang->code ?? 'en' }}" dir="rtl">
     @else
-        <html lang="en" dir="ltl">
+        <html lang="{{ $lang->code ?? 'en' }}" dir="ltr">
     @endif
 @else
-    <html lang="en" dir="ltl">
+    <html lang="en" dir="ltr">
 @endif
 <head>
     <!-- Required meta tags -->

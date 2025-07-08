@@ -30,10 +30,6 @@ class ClassGroupController extends Controller
     public function index()
     {
         //
-        $systemSettings = $this->cache->getSystemSettings();
-        if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-            return redirect('/');
-        }
         ResponseService::noAnyPermissionThenRedirect(['class-group-list','class-group-create']);
         $classes = $this->class->builder()->groupBy('name')->pluck('name','id');
         return view('class-group.index', compact('classes'));
@@ -54,17 +50,15 @@ class ClassGroupController extends Controller
     public function store(Request $request)
     {
         //
-        $systemSettings = $this->cache->getSystemSettings();
-        if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-            return redirect('/');
-        }
         ResponseService::noPermissionThenRedirect('class-group-create');
 
         $request->validate([
             'name' => 'required',
             'description' => 'required',
-            'image' => 'required',
+            'image' => 'required|image|mimes:jpeg,png,jpg,svg,gif,webp',
             'class_ids' => 'required',
+        ],[
+            'image.mimes' => 'The selected file must be a file of type: jpeg, png, jpg, svg, gif or webp.'
         ]);
 
         try {
@@ -90,10 +84,6 @@ class ClassGroupController extends Controller
     public function show($id)
     {
         //
-        $systemSettings = $this->cache->getSystemSettings();
-        if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-            return redirect('/');
-        }
         ResponseService::noPermissionThenRedirect('class-group-list');
 
         $offset = request('offset', 0);
@@ -154,10 +144,6 @@ class ClassGroupController extends Controller
     public function update(Request $request, $id)
     {
         //
-        $systemSettings = $this->cache->getSystemSettings();
-        if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-            return redirect('/');
-        }
         ResponseService::noPermissionThenRedirect('class-group-edit');
         $request->validate([
             'name' => 'required',
@@ -189,10 +175,6 @@ class ClassGroupController extends Controller
     public function destroy($id)
     {
         //
-        $systemSettings = $this->cache->getSystemSettings();
-        if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 0) {
-            return redirect('/');
-        }
         ResponseService::noPermissionThenRedirect('class-group-delete');
         try {
             DB::beginTransaction();

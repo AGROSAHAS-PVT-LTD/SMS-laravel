@@ -6,7 +6,10 @@ use App\Repositories\Holiday\HolidayInterface;
 use App\Repositories\SessionYear\SessionYearInterface;
 use App\Services\BootstrapTableService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
+use App\Services\CachingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
 
@@ -14,10 +17,14 @@ class HolidayController extends Controller {
 
     private HolidayInterface $holiday;
     private SessionYearInterface $sessionYear;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
+    private CachingService $cache;
 
-    public function __construct(HolidayInterface $holiday, SessionYearInterface $sessionYear) {
+    public function __construct(HolidayInterface $holiday, SessionYearInterface $sessionYear, SessionYearsTrackingsService $sessionYearsTrackingsService, CachingService $cache) {
         $this->holiday = $holiday;
         $this->sessionYear = $sessionYear;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
+        $this->cache = $cache;
     }
 
     public function index() {
@@ -41,7 +48,9 @@ class HolidayController extends Controller {
             ResponseService::errorResponse($validator->errors()->first());
         }
         try {
-            $this->holiday->create($request->all());
+            $holiday = $this->holiday->create($request->all());
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Holiday', $holiday->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Holiday Controller -> Store Method");
@@ -59,6 +68,8 @@ class HolidayController extends Controller {
         }
         try {
             $this->holiday->update($id, $request->all());
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Holiday', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             ResponseService::successResponse('Data Updated Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Holiday Controller -> Update Method");
@@ -126,6 +137,8 @@ class HolidayController extends Controller {
         ResponseService::noPermissionThenSendJson('holiday-delete');
         try {
             $this->holiday->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\Holiday', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Holiday Controller -> Delete Method");

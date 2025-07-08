@@ -61,10 +61,15 @@ class StudentController extends Controller {
     public function index() {
         ResponseService::noPermissionThenRedirect('student-list');
         $class_sections = $this->classSection->all(['*'], ['class', 'class.stream', 'section', 'medium']);
-        $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+
+        if(Auth::user()->school_id) {
+            $extraFields = $this->formFields->defaultModel()->where('user_type', 1)->orderBy('rank')->get();    
+        } else {
+            $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+        }
+       
         $sessionYears = $this->sessionYear->all();
         $features = FeaturesService::getFeatures();
-
         return view('students.details', compact('class_sections', 'extraFields', 'sessionYears', 'features'));
     }
 
@@ -74,7 +79,13 @@ class StudentController extends Controller {
         $sessionYear = $this->cache->getDefaultSessionYear();
         $get_student = $this->student->builder()->latest('id')->withTrashed()->pluck('id')->first();
         $admission_no = $sessionYear->name .'0'. Auth::user()->school_id . '0' . ($get_student + 1);
-        $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+
+        if(Auth::user()->school_id) {
+            $extraFields = $this->formFields->defaultModel()->where('user_type', 1)->orderBy('rank')->get();    
+        } else {
+            $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+        }
+
         $sessionYears = $this->sessionYear->all();
         $features = FeaturesService::getFeatures();
         return view('students.create', compact('class_sections', 'admission_no', 'extraFields', 'sessionYears', 'features'));
@@ -142,8 +153,8 @@ class StudentController extends Controller {
             $userService = app(UserService::class);
             $sessionYear = $this->sessionYear->findById($request->session_year_id);
             $guardian = $userService->createOrUpdateParent($request->guardian_first_name, $request->guardian_last_name, $request->guardian_email, $request->guardian_mobile, $request->guardian_gender, $request->guardian_image);
-
-            $userService->createStudentUser($request->first_name, $request->last_name, $request->admission_no, $request->mobile, $request->dob, $request->gender, $request->image, $request->class_section_id, $request->admission_date, $request->current_address, $request->permanent_address, $sessionYear->id, $guardian->id, $request->extra_fields ?? [], $request->status ?? 0);
+            $is_send_notification = true;
+            $userService->createStudentUser($request->first_name, $request->last_name, $request->admission_no, $request->mobile, $request->dob, $request->gender, $request->image, $request->class_section_id, $request->admission_date, $request->current_address, $request->permanent_address, $sessionYear->id, $guardian->id, $request->extra_fields ?? [], $request->status ?? 0, $is_send_notification);
 
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
@@ -318,7 +329,7 @@ class StudentController extends Controller {
                     $data = '<a href="'.Storage::url($field->data).'" target="_blank">DOC</a>';
                 } else if($field->form_field->type == 'dropdown') {
                     $data = $field->form_field->default_values;
-                    $data = $data[$field->data] ?? '';
+                    $data = $field->data ?? '';
                 } else {
                     $data = $field->data;
                 }
@@ -407,7 +418,24 @@ class StudentController extends Controller {
         ResponseService::noPermissionThenSendJson('student-delete');
         try {
             DB::beginTransaction();
-            $this->user->builder()->where('id',$id)->withTrashed()->forceDelete();
+            
+            // Get student record with guardian
+            $student = $this->student->builder()->with('guardian')->where('user_id', $id)->first();
+            
+            if ($student && $student->guardian) {
+                // Count total students with same guardian_id
+                $guardianStudentCount = $this->student->builder()->where('guardian_id', $student->guardian_id)->count();
+
+                // If guardian has exactly one student, delete the guardian
+                if ($guardianStudentCount == 1) {
+                    $this->user->builder()->where('id', $student->guardian->id)->withTrashed()->forceDelete();
+                }
+            }
+
+            // Delete student and user records
+            $this->student->builder()->where('user_id', $id)->withTrashed()->forceDelete();
+            $this->user->builder()->where('id', $id)->withTrashed()->forceDelete();
+
             DB::commit();
             ResponseService::successResponse("Data Deleted Permanently");
         } catch (Throwable $e) {
@@ -435,10 +463,20 @@ class StudentController extends Controller {
             ResponseService::errorResponse($validator->errors()->first());
         }
         try {
-            Excel::import(new StudentsImport($request->class_section_id, $request->session_year_id), $request->file);
+            Excel::import(new StudentsImport($request->class_section_id, $request->session_year_id, $request->is_send_notification), $request->file);
             ResponseService::successResponse('Data Stored Successfully');
         } catch (ValidationException $e) {
-            ResponseService::errorResponse($e->getMessage());
+            if ($e instanceof TypeError && Str::contains($e->getMessage(), [
+                'Failed',
+                'Mail',
+                'Mailer',
+                'MailManager'
+            ])) {
+                DB::commit();
+                ResponseService::warningResponse("Student Registered successfully. But Email not sent.");
+            } else {
+                ResponseService::errorResponse($e->getMessage());
+            }
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Student Controller -> Store Bulk method");
             ResponseService::errorResponse();
@@ -631,7 +669,7 @@ class StudentController extends Controller {
 
     public function downloadSampleFile() {
         try {
-            return Excel::download(new StudentDataExport(), 'import.xlsx');
+            return Excel::download(new StudentDataExport(), 'Student_import.xlsx');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, 'Student Controller ---> Download Sample File');
             ResponseService::errorResponse();
@@ -807,7 +845,7 @@ class StudentController extends Controller {
                 $parts = explode('.', $fullDomain);
                 $subdomain = $parts[0];
                 
-                $school = School::where('domain',$subdomain)->first();
+                $school = School::on('mysql')->where('domain', $fullDomain)->orwhere('domain', $subdomain)->first();
                 if ($school) {
                     $schoolSettings = $this->cache->getSchoolSettings('*', $school->id);
                 }
@@ -929,6 +967,7 @@ class StudentController extends Controller {
             $tempRow['eng_student_gender'] = $student_gender;
             $tempRow['eng_guardian_gender'] = $guardian_gender;
             $tempRow['extra_fields'] = $row->user->extra_student_details;
+            $tempRow['application_status'] = $row->application_status;
             foreach ($row->user->extra_student_details as $key => $field) {
                 $data = '';
                 if ($field->form_field->type == 'checkbox') {
@@ -937,7 +976,7 @@ class StudentController extends Controller {
                     $data = '<a href="'.Storage::url($field->data).'" target="_blank">DOC</a>';
                 } else if($field->form_field->type == 'dropdown') {
                     $data = $field->form_field->default_values;
-                    $data = $data[$field->data] ?? '';
+                    $data = $field->data ?? '';
                 } else {
                     $data = $field->data;
                 }
@@ -956,7 +995,7 @@ class StudentController extends Controller {
     {
         ResponseService::noPermissionThenRedirect('student-create');
         $request->validate([
-            'class_section_id' => 'required'
+            'class_section_id' => $request->application_status == '0' ? 'nullable' : 'required'
         ],[
             'class_section_id' => 'The assign class section field is required'
         ]);

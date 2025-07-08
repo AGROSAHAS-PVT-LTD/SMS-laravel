@@ -69,4 +69,9 @@ class SubscriptionBill extends Model
         }
         return $this->due_date;
     }
+
+    public function addons()
+    {
+        return $this->hasMany(AddonSubscription::class,'subscription_id','subscription_id');
+    }
 }

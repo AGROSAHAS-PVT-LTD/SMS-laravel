@@ -18,6 +18,7 @@ use App\Models\Slider;
 use App\Models\Stream;
 use App\Models\Students;
 use App\Models\User;
+use App\Repositories\ExtraFormField\ExtraFormFieldsInterface;
 use App\Repositories\Guidance\GuidanceInterface;
 use App\Repositories\SystemSetting\SystemSettingInterface;
 use App\Services\CachingService;
@@ -43,6 +44,8 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Validator;
 use Str;
 use Throwable;
+use App\Repositories\FormField\FormFieldsInterface;
+use App\Repositories\ContactInquiry\ContactInquiryInterface;
 
 
 class Controller extends BaseController {
@@ -52,12 +55,18 @@ class Controller extends BaseController {
     private GuidanceInterface $guidance;
     private SubscriptionService $subscriptionService;
     private CachingService $cache;
+    private FormFieldsInterface $formFields;
+    private ExtraFormFieldsInterface $extraFormFields;
+    private ContactInquiryInterface $contactInquiry;
 
-    public function __construct(SystemSettingInterface $systemSettings, GuidanceInterface $guidance, SubscriptionService $subscriptionService, CachingService $cache) {
+    public function __construct(SystemSettingInterface $systemSettings, GuidanceInterface $guidance, SubscriptionService $subscriptionService, CachingService $cache, FormFieldsInterface $formFields, ExtraFormFieldsInterface $extraFormFields, ContactInquiryInterface $contactInquiry) {
         $this->systemSettings = $systemSettings;
         $this->guidance = $guidance;
         $this->subscriptionService = $subscriptionService;
         $this->cache = $cache;
+        $this->formFields = $formFields;
+        $this->extraFormFields = $extraFormFields;
+        $this->contactInquiry = $contactInquiry;
     }
 
     public function makeParentPassword($mobile) {
@@ -70,22 +79,62 @@ class Controller extends BaseController {
 
     public function index() {
 
-        if (Auth::user()) {
-            return redirect('dashboard');
+        if (Auth::user() && (Auth::user()->two_factor_enabled == 1 && Auth::user()->two_factor_expires_at)) {
+            return redirect('/dashboard');
+        }
+    
+    	if (Auth::user()) {
+            return redirect('/dashboard');
         }
 
         // School website
         $fullDomain = $_SERVER['HTTP_HOST'];
+        $fullDomain = str_replace("www.", "", $fullDomain);
         $parts = explode('.', $fullDomain);
         $subdomain = $parts[0];
         $school = '';
-
+        $extraFields = [];
+        $demoSchoolUrl = '';
+        $isDemoSchool = 0;
         try {
-            $school = School::on('mysql')->where('domain',$subdomain)->first();
+            $demoDomain = School::where('type', 'demo')->pluck('domain')->first();
+
+            if($demoDomain)
+            {
+                $baseUrl = url('/');
+                $baseUrlParts = parse_url($baseUrl);
+                $host = $baseUrlParts['host']; 
+                $host = str_replace("www.", "", $host);
+                $hostParts = explode('.', $host);
+                $isDemoSchool = 1;
+
+                // Check if it's a subdomain or main domain
+                if (count($hostParts) < 2) {
+                    $hostParts[0] = $demoDomain;
+                } else {
+                    array_unshift($hostParts, $demoDomain);
+                }
+
+                $newHost = implode('.', $hostParts);
+                $demoSchoolUrl = $baseUrlParts['scheme'] . '://' . $newHost;
+
+                if (!empty($baseUrlParts['port'])) {
+                    $demoSchoolUrl .= ':' . $baseUrlParts['port'];
+                }
+
+                if (!empty($baseUrlParts['path'])) {
+                    $demoSchoolUrl .= $baseUrlParts['path'];
+                }
+            }
         } catch (\Throwable $th) {
             
         }
-        
+
+        try {
+            $school = School::on('mysql')->where('domain', $fullDomain)->orwhere('domain', $subdomain)->first();
+        } catch (\Throwable $th) {
+            
+        }
 
         if ($school) {
             // Get current subscription features
@@ -101,48 +150,64 @@ class Controller extends BaseController {
             }
             
         }
+
+        if ($this->isSchoolWebsiteRequest()) {
+        	$features = Feature::activeFeatures()->get();
+
+        	$settings = app(CachingService::class)->getSystemSettings();
+            $schoolSettings = SchoolSetting::where('name', 'horizontal_logo')->get();
+
+            $about_us_lists = $settings['about_us_points'] ?? 'Affordable price, Easy to manage admin panel, Data Security';
+            $about_us_lists = explode(",", $about_us_lists);
+            $faqs = Faq::where('school_id', null)->get();
+            $featureSections = FeatureSection::with('feature_section_list')->orderBy('rank', 'ASC')->get();
+            $guidances = $this->guidance->builder()->get();
+            $languages = Language::get();
+
+            $school = School::count();
+            $allSchools = School::all();
+
+            try {
+                $student = User::role('Student')->whereHas('school',function($q) {
+                    $q->whereNull('deleted_at')->where('status',1);
+                })->count();
+                $teacher = User::role('Teacher')->whereHas('school',function($q) {
+                    $q->whereNull('deleted_at')->where('status',1);
+                })->count();
+            } catch (Throwable) {
+                // If role does not exist in fresh installation then set the counter to 0
+                $student = 0;
+                $teacher = 0;
+            }
+
+
+        	$counter = [
+            	'school'  => $school,
+            	'student' => $student,
+            	'teacher' => $teacher,
+        	];
+
+        	$packages = Package::where('status', 1)->with('package_feature.feature')->where('status', 1)->orderBy('rank', 'ASC')->get();
+
+        	$trail_package = $packages->where('is_trial', 1)->first();
+        	if ($trail_package) {
+            	$trail_package = $trail_package->id;
+        	}
+
+        	$extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+
+            //
+            // try {
+            //     $demoSchool = School::where('type', 'demo')->withTrashed()->first() !== null ? 1 : 0;
+            // } catch (\Exception $e) {
+            //     $demoSchool = 0;
+            // }
+
+        	return view('home', compact('features', 'packages', 'settings', 'faqs', 'guidances', 'languages', 'schoolSettings', 'featureSections', 'about_us_lists', 'counter', 'trail_package', 'extraFields', 'demoSchoolUrl', 'allSchools','isDemoSchool'));
+        } else {
+        	return view('errors.400');
+        }
         // End school website
-
-        $features = Feature::activeFeatures()->get();
-        $settings = app(CachingService::class)->getSystemSettings();
-        $schoolSettings = SchoolSetting::where('name', 'horizontal_logo')->get();
-
-        $about_us_lists = $settings['about_us_points'] ?? 'Affordable price, Easy to manage admin panel, Data Security';
-        $about_us_lists = explode(",", $about_us_lists);
-        $faqs = Faq::where('school_id', null)->get();
-        $featureSections = FeatureSection::with('feature_section_list')->orderBy('rank', 'ASC')->get();
-        $guidances = $this->guidance->builder()->get();
-        $languages = Language::get();
-
-        $school = School::count();
-
-        try {
-            $student = User::role('Student')->whereHas('school',function($q) {
-                $q->whereNull('deleted_at')->where('status',1);
-            })->count();
-            $teacher = User::role('Teacher')->whereHas('school',function($q) {
-                $q->whereNull('deleted_at')->where('status',1);
-            })->count();
-        } catch (Throwable) {
-            // If role does not exist in fresh installation then set the counter to 0
-            $student = 0;
-            $teacher = 0;
-        }
-
-
-        $counter = [
-            'school'  => $school,
-            'student' => $student,
-            'teacher' => $teacher,
-        ];
-
-        $packages = Package::where('status', 1)->with('package_feature.feature')->where('status', 1)->orderBy('rank', 'ASC')->get();
-
-        $trail_package = $packages->where('is_trial', 1)->first();
-        if ($trail_package) {
-            $trail_package = $trail_package->id;
-        }
-        return view('home', compact('features', 'packages', 'settings', 'faqs', 'guidances', 'languages', 'schoolSettings', 'featureSections', 'about_us_lists', 'counter', 'trail_package'));
     }
 
     public function school_website($school)
@@ -177,12 +242,44 @@ class Controller extends BaseController {
 
         $announcements = Announcement::where('school_id',$school->id)->whereHas('announcement_class',function($q) {
             $q->where('class_subject_id',null);
-        })->with('announcement_class.class_section.class.stream','announcement_class.class_section.section','announcement_class.class_section.medium')->orderBy('id','DESC')->take(10)->get();
+        })->with('announcement_class.class_section.class.stream','announcement_class.class_section.section','announcement_class.class_section.medium','file')->orderBy('id','DESC')->take(10)->get();
 
         $class_groups = ClassGroup::where('school_id',$school->id)->get();
 
         return view('school-website.index',compact('sliders','faqs','counters','announcements','class_groups'));
     }
+    
+    public function isSchoolWebsiteRequest()
+    {
+        $host = request()->getHost();
+        $host = str_replace('www.', '', $host);
+    
+        $appUrlHost = parse_url(env('APP_URL'), PHP_URL_HOST);
+        $appUrlHost = str_replace('www.', '', $appUrlHost);
+    
+        $isLocal = in_array(request()->ip(), ['127.0.0.1', '::1']);
+    
+        // Dump to see results
+        // dd([
+        //     'Request Host' => $host,
+        //     'App URL Host' => $appUrlHost,
+        //     'Is Local' => $isLocal,
+        //     'Matches' => ($host === $appUrlHost)
+        // ]);
+
+        // Check if the host is the same as the app URL host
+        if ($host === $appUrlHost) {
+            return true;
+        };
+        
+        if ($isLocal) {
+            return true;
+        }
+    
+        return false;
+    }
+
+
 
     public function contact(Request $request) {
         try {
@@ -210,14 +307,20 @@ class Controller extends BaseController {
                 }
             }
 
+            $this->contactInquiry->create($request->only(['name', 'email', 'message']));
+
             Mail::send('contact', $data, static function ($message) use ($data) {
                 $message->to($data['admin_email'])->subject('Get In Touch');
             });
 
             ResponseService::successResponse(trans('Message send successfully'));
 
-        } catch (Throwable) {
-            ResponseService::errorResponse(trans('Apologies for the Inconvenience: Please Try Again Later'));
+        } catch (Throwable $e) {
+            if (Str::contains($e->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                ResponseService::warningResponse("Message send successfully. But Email not sent.");
+            } else {
+                ResponseService::errorResponse(trans('Apologies for the Inconvenience: Please Try Again Later'));
+            }
         }
 
 
@@ -318,7 +421,7 @@ class Controller extends BaseController {
         $parts = explode('.', $fullDomain);
         $subdomain = $parts[0];
      
-        $school = School::where('domain',$subdomain)->first();
+        $school = School::on('mysql')->where('domain', $fullDomain)->orwhere('domain', $subdomain)->first();
 
         // Verify google captcha
         $schoolSettings = $this->cache->getSchoolSettings('*', $school->id);
@@ -347,13 +450,30 @@ class Controller extends BaseController {
                 'school_email' => $request->school_email
             ];
 
+            try {
+                
+                Config::set('database.connections.school.database', $school->database_name);
+                DB::purge('school');
+                DB::connection('school')->reconnect();
+                DB::setDefaultConnection('school');
+                
+                $this->contactInquiry->create($request->only(['name', 'email', 'subject', 'message']));
+                
+            } catch (Throwable $e) {
+                ResponseService::logErrorResponse($e, "Contact Form Controller -> contact_form Method");
+            }
+
             Mail::send('contact', $data, static function ($message) use ($data) {
                 $message->to($data['school_email'])->subject($data['subject']);
             });
 
             ResponseService::successResponse('Data Stored Successfully');
-        } catch (Throwable) {
-            ResponseService::errorResponse('Apologies for the Inconvenience: Please Try Again Later');
+        } catch (Throwable $e) {
+            if (Str::contains($e->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                ResponseService::warningResponse("Message send successfully. But Email not sent.");
+            } else {
+                ResponseService::errorResponse('Apologies for the Inconvenience: Please Try Again Later');
+            }
         }
     }
 
@@ -438,16 +558,21 @@ class Controller extends BaseController {
         $subdomain = $parts[0];
         $schoolId = '';
  
-        $school = School::where('domain',$subdomain)->first();
+        $school = School::on('mysql')->where('domain', $fullDomain)->orwhere('domain', $subdomain)->first();
         
         Config::set('database.connections.school.database', $school->database_name);
         DB::purge('school');
         DB::connection('school')->reconnect();
         DB::setDefaultConnection('school');
 
-        $schoolId = $school->id;
-        $classes = ClassSchool::with('medium','stream')->where('school_id', $schoolId)->get();       
-        return view('school-website.admission', compact('classes'));
+        // $schoolId = $school->id;
+        $classes = ClassSchool::with('medium','stream')->where('school_id', $school->id)->get();   
+        if($school) {
+            $extraFields = $this->formFields->defaultModel()->where('user_type', 1)->orderBy('rank')->get();    
+        } else {
+            $extraFields = $this->formFields->defaultModel()->orderBy('rank')->get();
+        }  
+        return view('school-website.admission', compact('classes', 'extraFields'));
     }
     
     public function registerStudent(Request $request)
@@ -477,7 +602,7 @@ class Controller extends BaseController {
             $parts = explode('.', $fullDomain);
             $subdomain = $parts[0];
      
-            $school = School::where('domain',$subdomain)->first();
+            $school = School::on('mysql')->where('domain', $fullDomain)->orwhere('domain', $subdomain)->first();
 
             Config::set('database.connections.school.database', $school->database_name);
             DB::purge('school');
@@ -549,8 +674,6 @@ class Controller extends BaseController {
             if ($request->hasFile('image')) {
                 $image = UploadService::upload($request->image, 'user');    
             }
-            
-
             $password = $this->makeStudentPassword($request->dob);
             //Create Student User First
             $user = User::create([
@@ -569,7 +692,6 @@ class Controller extends BaseController {
                 'deleted_at'        => $request->status == 1 ? null : '1970-01-01 01:00:00'
             ]);
             $user->assignRole('Student');
-    
             $student = Students::create([
                 'user_id'          => $user->id,
                 'class_section_id' => null,
@@ -583,6 +705,23 @@ class Controller extends BaseController {
                 'application_status' => 0,
                 'school_id'         => $school->id,
             ]);
+
+            $extraDetails = array();
+            foreach ($request->extra_fields ?? []as $fields) {
+                $data = null;
+                if (isset($fields['data'])) {
+                    $data = (is_array($fields['data']) ? json_encode($fields['data'], JSON_THROW_ON_ERROR) : $fields['data']);
+                }
+                $extraDetails[] = array(
+                    'user_id'    => $user->id,
+                    'form_field_id' => $fields['form_field_id'],
+                    'data'          => $data,
+                    'school_id'    => $school->id,
+                );
+            }
+            if (!empty($extraDetails)) {
+                $this->extraFormFields->createBulk($extraDetails);
+            }
         
             DB::commit();
             ResponseService::successResponse('Student Registered successfully');
@@ -617,10 +756,10 @@ class Controller extends BaseController {
                     // Update the `updated_at` timestamp to the current time
                     $user->touch(); // This will update the `updated_at` timestamp
                     Auth::logout();
-                    return redirect()->back()->with('emailSuccess', 'A verification email has been sent to your email address. Please check your inbox.');
+                    return redirect()->route('login')->with('emailSuccess', 'A verification email has been sent to your email address. Please check your inbox.');
                 } else {
                     Auth::logout();
-                    return redirect()->back()->with('emailError', 'You have already requested a verification email recently. Please try again later.');
+                    return redirect()->route('login')->with('emailError', 'You have already requested a verification email recently. Please try again later.');
                 }
             }
 
@@ -630,7 +769,7 @@ class Controller extends BaseController {
             return redirect()->route('home');
         } catch (\Throwable $th) {
             Auth::logout();
-            return redirect()->back()->with('error',trans('An error occurred Please try again later'));
+            return redirect()->route('login')->with('error',trans('An error occurred Please try again later'));
         }
         
     }

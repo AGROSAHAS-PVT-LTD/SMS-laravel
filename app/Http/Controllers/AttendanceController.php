@@ -7,8 +7,10 @@ use App\Repositories\ClassSection\ClassSectionInterface;
 use App\Repositories\Student\StudentInterface;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -21,13 +23,15 @@ class AttendanceController extends Controller
     private ClassSectionInterface $classSection;
     private StudentInterface $student;
     private CachingService $cache;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(AttendanceInterface $attendance, ClassSectionInterface $classSection, StudentInterface $student, CachingService $cachingService)
+    public function __construct(AttendanceInterface $attendance, ClassSectionInterface $classSection, StudentInterface $student, CachingService $cachingService, SessionYearsTrackingsService $sessionYearsTrackingsService)
     {
         $this->attendance = $attendance;
         $this->classSection = $classSection;
         $this->student = $student;
         $this->cache = $cachingService;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
 
@@ -127,6 +131,7 @@ class AttendanceController extends Controller
         $sessionYear = $this->cache->getDefaultSessionYear();
 
         $attendanceData = array();
+        $total = 0;
 
         $attendanceQuery = $this->attendance->builder()->with('user.student')->where(['date' => $date, 'class_section_id' => $class_section_id, 'session_year_id' => $sessionYear->id])->whereHas('user', function ($q) {
             $q->whereNull('deleted_at');
@@ -194,7 +199,7 @@ class AttendanceController extends Controller
         ResponseService::noAnyPermissionThenRedirect(['class-teacher', 'attendance-list']);
 
         $offset = request('offset', 0);
-        $limit = request('limit', 10);
+        $limit = request('limit');
         $sort = request('sort', 'student_id');
         $order = request('order', 'ASC');
         $search = request('search');
@@ -237,7 +242,12 @@ class AttendanceController extends Controller
         });
         $total = $sql->count();
 
-        $sql->orderBy($sort, $order)->skip($offset)->take($limit);
+        $sql->orderBy($sort, $order);
+
+        if ($limit) {
+            $sql->skip($offset)->take($limit);
+        }
+
         $res = $sql->get();
 
         $bulkData = array();

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
-
+use App\Models\SessionYearsTracking;
 
 class Students extends Model {
     use SoftDeletes;
@@ -25,7 +25,9 @@ class Students extends Model {
         'school_id',
         'session_year_id',
         'application_type',
-        'application_status'
+        'application_status',
+        'join_session_year_id',
+        'leave_session_year_id'
     ];
     protected $appends = ['first_name','last_name','full_name'];
 
@@ -43,6 +45,11 @@ class Students extends Model {
             }
 
             if (Auth::user()->school_id || Auth::user()->hasRole('Student') || Auth::user()->hasRole('School Admin')) {
+                $cache = app(CachingService::class);
+                $query->with(['session_years_trackings' => function ($q) use ($cache) {
+                    $q->where('modal_type', 'App\Models\Students')
+                      ->where('session_year_id', $cache->getDefaultSessionYear()->id);
+                }]);
                 return $query->where('school_id', Auth::user()->school_id);
             }
         }
@@ -219,4 +226,25 @@ class Students extends Model {
     {
         return $this->hasMany(Attendance::class, 'student_id', 'user_id');
     }
+
+    public function session_year() {
+        return $this->belongsTo(SessionYear::class, 'session_year_id');
+    }
+
+    public function shift() {
+        return $this->belongsTo(Shift::class, 'shift_id', 'id');
+    }
+
+    public function session_years_trackings()
+    {
+        return $this->hasMany(SessionYearsTracking::class, 'modal_id', 'id')->where('modal_type', 'App\Models\Students');
+    }
+
+    public function student_subjects() {
+        return $this->hasMany(StudentSubject::class, 'student_id', 'user_id');
+    }
+
+    // public function elective_subject_groups() {
+    //     return $this->hasMany(ElectiveSubjectGroup::class, 'class_id', 'class_id');
+    // }
 }

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use JsonException;
 use Throwable;
 
@@ -19,11 +20,13 @@ class UserService {
     private UserInterface $user;
     private StudentInterface $student;
     private ExtraFormFieldsInterface $extraFormFields;
-
-    public function __construct(UserInterface $user, StudentInterface $student, ExtraFormFieldsInterface $extraFormFields) {
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
+    
+    public function __construct(UserInterface $user, StudentInterface $student, ExtraFormFieldsInterface $extraFormFields, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->user = $user;
         $this->student = $student;
         $this->extraFormFields = $extraFormFields;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     /**
@@ -110,7 +113,7 @@ class UserService {
      * @throws Throwable
      */
 
-    public function createStudentUser(string $first_name, string $last_name, string $admission_no, string|null $mobile, string $dob, string $gender, \Symfony\Component\HttpFoundation\File\UploadedFile|null $image, int $classSectionID, string $admissionDate, $current_address = null, $permanent_address = null, int $sessionYearID, int $guardianID, array $extraFields = [], int $status) {
+    public function createStudentUser(string $first_name, string $last_name, string $admission_no, string|null $mobile, string $dob, string $gender, \Symfony\Component\HttpFoundation\File\UploadedFile|null $image, int $classSectionID, string $admissionDate, $current_address = null, $permanent_address = null, int $sessionYearID, int $guardianID, array $extraFields = [], int $status, $is_send_notification = null) {
         $password = $this->makeStudentPassword($dob);
         //Create Student User First
         $user = $this->user->create([
@@ -134,15 +137,20 @@ class UserService {
         $roll_number_db = $roll_number_db['max(roll_number)'];
         $roll_number = $roll_number_db + 1;
 
-        $student = $this->student->create([
+        $student = $this->student->updateOrCreate( ['user_id' => $user->id] ,[
             'user_id'          => $user->id,
             'class_section_id' => $classSectionID,
             'admission_no'     => $admission_no,
             'roll_number'      => $roll_number,
             'admission_date'   => date('Y-m-d', strtotime($admissionDate)),
             'guardian_id'      => $guardianID,
-            'session_year_id'  => $sessionYearID
+            'session_year_id'  => $sessionYearID,
+            'join_session_year_id' => $sessionYearID,
+            'leave_session_year_id' => null 
         ]);
+
+        // Store Session Years Tracking
+        $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Student', $student->id, $user->id, $sessionYearID, Auth::user()->school_id, null);
 
         // Store Extra Details
         $extraDetails = array();
@@ -152,7 +160,7 @@ class UserService {
                 $data = (is_array($fields['data']) ? json_encode($fields['data'], JSON_THROW_ON_ERROR) : $fields['data']);
             }
             $extraDetails[] = array(
-                'student_id'    => $student->user_id,
+                'user_id'    => $student->user_id,
                 'form_field_id' => $fields['form_field_id'],
                 'data'          => $data,
             );
@@ -162,8 +170,14 @@ class UserService {
         }
 
         $guardian = $this->user->guardian()->where('id', $guardianID)->firstOrFail();
+        if (is_object($guardian)) {
+            $guardian = (object) $guardian->toArray();
+        }
+
         $parentPassword = $this->makeParentPassword($guardian->mobile);
-        $this->sendRegistrationEmail($guardian, $user, $student->admission_no, $password);
+        if ($is_send_notification) {
+            $this->sendRegistrationEmail($guardian, $user, $student->admission_no, $password);
+        }
         return $user;
     }
 
@@ -226,7 +240,7 @@ class UserService {
                 if (isset($fields['data']) && $fields['data'] instanceof UploadedFile) {
                     $extraDetails[] = array(
                         'id'            => $fields['id'],
-                        'student_id'    => $student->user_id,
+                        'user_id'    => $student->user_id,
                         'form_field_id' => $fields['form_field_id'],
                         'data'          => $fields['data']
                     );
@@ -238,7 +252,7 @@ class UserService {
                 }
                 $extraDetails[] = array(
                     'id'            => $fields['id'],
-                    'student_id'    => $student->user_id,
+                    'user_id'    => $student->user_id,
                     'form_field_id' => $fields['form_field_id'],
                     'data'          => $data,
                 );
@@ -262,6 +276,8 @@ class UserService {
      */
     public function sendRegistrationEmail($guardian, $child, $childAdmissionNumber, $childPlainTextPassword) {
         try {
+
+         
             $school_name = Auth::user()->school->name;
 
             $email_body = $this->replacePlaceholders($guardian, $child, $childAdmissionNumber, $childPlainTextPassword);
@@ -275,7 +291,11 @@ class UserService {
                 $message->to($data['email'])->subject($data['subject']);
             });
         } catch (\Throwable $th) {
-
+            if (Str::contains($th->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                ResponseService::warningResponse("Message send successfully. But Email not sent.");
+            } else {
+                ResponseService::errorResponse(trans('error_occured'));
+            }
         }
 
     }
@@ -320,18 +340,26 @@ class UserService {
 
     public function sendStaffRegistrationEmail($user, $password)
     {
-        $cache = app(CachingService::class);
-        $schoolSettings = $cache->getSchoolSettings();
-        $email_body = $this->replaceStaffPlaceholders($user, $password, $schoolSettings);
-        $data = [
-            'subject'     => 'Welcome to ' . $schoolSettings['school_name'],
-            'email'       => $user->email,
-            'email_body'  => $email_body
-        ];
+        try {
+            $cache = app(CachingService::class);
+            $schoolSettings = $cache->getSchoolSettings();
+            $email_body = $this->replaceStaffPlaceholders($user, $password, $schoolSettings);
+            $data = [
+                'subject'     => 'Welcome to ' . $schoolSettings['school_name'],
+                'email'       => $user->email,
+                'email_body'  => $email_body
+            ];
 
-        Mail::send('teacher.email', $data, static function ($message) use ($data) {
-            $message->to($data['email'])->subject($data['subject']);
-        });
+            Mail::send('teacher.email', $data, static function ($message) use ($data) {
+                $message->to($data['email'])->subject($data['subject']);
+            });
+        } catch (\Throwable $th) {
+            if (Str::contains($th->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                ResponseService::warningResponse("Message send successfully. But Email not sent.");
+            } else {
+                ResponseService::errorResponse(trans('error_occured'));
+            }
+        }
     }
 
     private function replaceStaffPlaceholders($user, $password, $schoolSettings)
@@ -370,18 +398,26 @@ class UserService {
 
     public function sendApplicationRejectEmail($user, $class_name, $guardian)
     {
-        $cache = app(CachingService::class);
-        $schoolSettings = $cache->getSchoolSettings();
-        $email_body = $this->replaceApplicationRejectPlaceholders($user, $class_name, $schoolSettings, $guardian);
-        $data = [
-            'subject'     => 'Admission Application Rejected - ' . $schoolSettings['school_name'],
-            'email'       => $guardian->email,
-            'email_body'  => $email_body
-        ];
+        try {
+            $cache = app(CachingService::class);
+            $schoolSettings = $cache->getSchoolSettings();
+            $email_body = $this->replaceApplicationRejectPlaceholders($user, $class_name, $schoolSettings, $guardian);
+            $data = [
+                'subject'     => 'Admission Application Rejected - ' . $schoolSettings['school_name'],
+                'email'       => $guardian->email,
+                'email_body'  => $email_body
+            ];
 
-        Mail::send('students.email', $data, static function ($message) use ($data) {
-            $message->to($data['email'])->subject($data['subject']);
-        });
+            Mail::send('students.email', $data, static function ($message) use ($data) {
+                $message->to($data['email'])->subject($data['subject']);
+            });
+        } catch (\Throwable $th) {
+            if (Str::contains($th->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                ResponseService::warningResponse("Message send successfully. But Email not sent.");
+            } else {
+                ResponseService::errorResponse(trans('error_occured'));
+            }
+        }
     }
 
     private function replaceApplicationRejectPlaceholders($user, $class_name, $schoolSettings, $guardian)

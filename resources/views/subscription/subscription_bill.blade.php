@@ -72,7 +72,7 @@
                                             <td class="text-right">{{ number_format($staff_charges * $subscriptionBill->total_staff, 4) }}</td>
                                         </tr>
                                         @php
-                                            $total_user_charge = number_format(($student_charges * $subscriptionBill->total_student) + ($staff_charges * $subscriptionBill->total_staff), 4);
+                                            $total_user_charge = ($student_charges * $subscriptionBill->total_student) + ($staff_charges * $subscriptionBill->total_staff);
                                             $addon_charges = 0;
                                         @endphp
                                         <tr>

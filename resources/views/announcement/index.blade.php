@@ -20,6 +20,7 @@
                             {{ __('create') . ' ' . __('announcement') }}
                         </h4>
                         <form class="create-form pt-3 common-validation-rules" data-success-function="formSuccessFunction" action="{{ route('announcement.store') }}" method="POST" novalidate="novalidate">
+                            {!! Form::hidden('user_id', Auth::user()->id, ['id' => 'user_id']) !!}
                             <div class="row">
                                 <div class="form-group col-sm-12 col-md-12 col-lg-6 col-xl-6">
                                     <label>{{ __('title') }} <span class="text-danger">*</span></label>
@@ -42,27 +43,37 @@
                                         </span>
                                     </div>
                                     <div class="mt-2 text-small text-danger">
-                                        {{ __('note') }} : {{__('Please note that only image or document files are allowed for upload')}}.
+                                        {{ __('note') }} : {{__('Please note that only image or document files are allowed for upload, and file must be less than')}} {{ $file_upload_size_limit }} {{ __('MB') }}.
                                     </div>
+                                    {{-- <div class="form-check">
+                                        <label class="form-check-label">
+                                            <input type="checkbox" class="form-check-input checkbox_add_url" name="checkbox_add_url" id="checkbox_add_url" value="">{{ __('add_url') }}
+                                        </label>
+                                    </div> --}}
+
+                                </div>
+                                <div class="form-group col-sm-12 col-md-12 col-lg-6 col-xl-6">
+                                    <label>{{ __('add_url') }}</label>
+                                    <input type="text" name="add_url" id="add_url" placeholder="{{ __('add_url') }}" class="form-control add_url" value="">
                                 </div>
 
                                 <div class="form-group col-sm-12 col-md-6">
                                     <label>{{ __('class_sections') }} <span class="text-danger">*</span></label>
-                                    <select name="class_section_id[]" required @if(!Auth::user()->hasRole('Teacher')) multiple @endif id="class-section-id" class="class_section_id form-control @if(!Auth::user()->hasRole('Teacher')) select2-dropdown select2-hidden-accessible @endif" tabindex="-1" aria-hidden="true">
-                                        @if (Auth::user()->hasRole('Teacher'))
+                                    <select name="class_section_id[]" required multiple id="class-section-id" class="class_section_id form-control select2-dropdown select2-hidden-accessible" tabindex="-1" aria-hidden="true">
+                                        {{-- @if (Auth::user()->hasRole('Teacher'))
                                             <option value="">{{ __('select') }} {{ __('class_section') }}</option>
-                                        @endif
+                                        @endif --}}
                                         @foreach ($class_section as $item)
                                             <option value="{{ $item->id }}" data-class="{{ $item->class->id }}">{{ $item->full_name }}</option>
                                         @endforeach
                                     </select>
-                                    @if (!Auth::user()->hasRole('Teacher'))
+                                    {{-- @if (!Auth::user()->hasRole('Teacher')) --}}
                                         <div class="form-check w-fit-content">
                                             <label class="form-check-label user-select-none">
                                                 <input type="checkbox" class="form-check-input" id="select-all" value="1">{{__("Select All")}}
                                             </label>
                                         </div>
-                                    @endif
+                                    {{-- @endif --}}
                                 </div>
                             </div>
                             <div class="row">
@@ -70,11 +81,11 @@
                                 @if (Auth::user()->hasRole('Teacher'))
                                     <div class="form-group col-sm-12 col-md-6 show_class_section_id">
                                         <label>{{ __('subject') }}</label>
-                                        <select name="class_subject_id" id="subject-id" class="form-control">
+                                        <select name="subject_id" id="subject-id" class="form-control">
                                             <option value="">-- {{ __('Select Subject') }} --</option>
                                             <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
                                             @foreach ($subjectTeachers as $item)
-                                                <option value="{{ $item->class_subject_id }}" data-class-section="{{ $item->class_section_id }}">{{ $item->subject_with_name}}</option>
+                                                <option value="{{ $item->subject_id }}" data-class-section="{{ $item->class_section_id }}" data-user="{{ Auth::user()->id }}">{{ $item->subject_with_name}}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -107,14 +118,14 @@
                                        data-export-data-type='all'
                                        data-show-export="true"
                                        data-export-options='{ "fileName": "announcement-list-<?= date('d-m-y') ?>" ,"ignoreColumn": ["operate"]}'
-                                       data-query-params="queryParams" data-escape="true">
+                                       data-query-params="announcementQueryParams" data-escape="true">
                                     <thead>
                                     <tr>
                                         <th scope="col" data-field="id" data-sortable="true" data-visible="false">{{ __('id') }}</th>
                                         <th scope="col" data-field="no">{{ __('no.') }}</th>
                                         <th scope="col" data-field="title">{{ __('title') }}</th>
                                         <th scope="col" data-events="tableDescriptionEvents" data-formatter="descriptionFormatter" data-field="description">{{ __('description') }}</th>
-                                        <th scope="col" data-field="assignto">{{ __('assign_to') }}</th>
+                                        <th scope="col" data-field="assignto" data-formatter="ClassSectionFormatter" >{{ __('assign_to') }}</th>
                                         <th scope="col" data-field="file" data-formatter="fileFormatter">{{ __('files') }}</th>
                                         <th data-events="announcementEvents" data-width="150" scope="col" data-field="operate" data-escape="false">{{ __('action') }}</th>
                                     </tr>
@@ -166,20 +177,21 @@
                             @if (Auth::user()->hasRole('Teacher'))
                                 <div class="form-group col-sm-12 col-md-12">
                                     <label>{{ __('subject') }}</label>
-                                    <select name="class_subject_id" id="edit-subject-id" class="form-control edit_subject_id" style="width:100%;" tabindex="-1" aria-hidden="true">
+                                    <select name="subject_id" id="edit-subject-id" class="form-control edit_subject_id" style="width:100%;">
                                         <option value="">-- {{ __('Select Subject') }} --</option>
                                         <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
                                         @foreach ($subjectTeachers as $item)
-                                            <option value="{{ $item->class_subject_id }}" data-class-section="{{ $item->class_section_id }}">{{ $item->subject_with_name}}</option>
+                                            <option value="{{ $item->subject_id }}" data-class-section="{{ $item->class_section_id }}">{{ $item->subject_with_name}}</option>
                                         @endforeach
                                     </select>
+                                    {!! Form::hidden('class_subject_id',"", ["id" => "class_subject_id_value"]) !!}
                                 </div>
                             @endif
 
                             <br>
                             <br>
                             <div class="form-group col-sm-12 col-md-12">
-                                <label>{{ __('old_files') }} :- </label>
+                                <label>{{ __('files_attachment') }} :- </label>
                                 <div id="old_files" class="mt-2"></div>
                             </div>
 
@@ -193,10 +205,23 @@
                                             <button class="file-upload-browse btn btn-theme"
                                                     type="button">{{ __('upload') }}</button>
                                         </span>
+
+                                        
                                 </div>
                                 <div class="mt-2 text-small text-danger">
-                                    {{ __('note') }} : {{__('Please note that only image or document files are allowed for upload')}}.
+                                    {{ __('note') }} : {{__('Please note that only image or document files are allowed for upload, and file must be less than')}} {{ $file_upload_size_limit }} {{ __('MB') }}.
                                 </div>
+                                {{-- <div class="form-check">
+                                    <label class="form-check-label">
+                                        <input type="checkbox" class="form-check-input edit_checkbox_add_url" name="checkbox_add_url" id="edit_checkbox_add_url" value="">{{ __('add_url') }}
+                                    </label>
+                                </div> --}}
+                                
+                            </div>
+
+                            <div class="form-group col-sm-12 col-md-12">
+                                <label>{{ __('add_url') }}</label>
+                                <input type="text" name="add_url" id="edit_add_url" placeholder="{{ __('add_url') }}" class="form-control edit_add_url" value="">
                             </div>
                         </div>
                     </div>
@@ -215,6 +240,7 @@
             setTimeout(() => {
                 $('.class_section_id').val('').trigger('change');
                 $('.edit_class_section_id').val('').trigger('change');
+                $('#add_url').val('');
             }, 500);
         }
 
@@ -222,14 +248,26 @@
         const edit_uploadInput = document.getElementById('edit_uploadInput');
         multi_files(uploadInput);
         multi_files(edit_uploadInput);
-
-
+        
         function multi_files(uploadInput)
         {
             // Event listener to handle file selection
             uploadInput.addEventListener('change', function () {
                 // Update file counter with the number of selected files
                 $(this).parent().find('.form-control').val(this.files.length + (this.files.length === 1 ? ' file selected' : ' files selected'));
+                
+                // if ($('#checkbox_add_url').is(':checked')) {
+                //     $('#add_url').show().val('');
+                // } else {
+                //     $('#add_url').hide().val('');
+                // }
+               
+                
+                // if ($('.edit_checkbox_add_url').is(':checked') ) {
+                //     $('#edit_add_url').val('');
+                // } else {
+                //     $('#edit_add_url').val('');
+                // }
             });
         }
         

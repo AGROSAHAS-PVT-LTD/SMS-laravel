@@ -15,7 +15,7 @@ class Gallery extends Model
     ];
 
     protected $appends = array('file_extension');
-
+    protected $connection = 'school';
     protected static function boot() {
         parent::boot();
         static::deleting(static function ($gallery) { // before delete() method call this

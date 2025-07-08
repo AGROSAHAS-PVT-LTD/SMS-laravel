@@ -14,6 +14,7 @@ use App\Repositories\User\UserInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 use App\Repositories\Files\FilesInterface;
+use Illuminate\Support\Facades\Validator;
 use Storage;
 
 class LeaveController extends Controller
@@ -36,8 +38,9 @@ class LeaveController extends Controller
     private HolidayInterface $holiday;
     private StaffInterface $staff;
     private FilesInterface $files;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(LeaveInterface $leave, SessionYearInterface $sessionYear, LeaveDetailInterface $leaveDetail, CachingService $cache, LeaveMasterInterface $leaveMaster, ExpenseInterface $expense, UserInterface $user, HolidayInterface $holiday, StaffInterface $staff, FilesInterface $files)
+    public function __construct(LeaveInterface $leave, SessionYearInterface $sessionYear, LeaveDetailInterface $leaveDetail, CachingService $cache, LeaveMasterInterface $leaveMaster, ExpenseInterface $expense, UserInterface $user, HolidayInterface $holiday, StaffInterface $staff, FilesInterface $files, SessionYearsTrackingsService $sessionYearsTrackingsService)
     {
         $this->leave = $leave;
         $this->sessionYear = $sessionYear;
@@ -49,6 +52,7 @@ class LeaveController extends Controller
         $this->holiday = $holiday;
         $this->staff = $staff;
         $this->files = $files;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index()
@@ -139,6 +143,14 @@ class LeaveController extends Controller
             $title = Auth::user()->full_name . ' has submitted a new leave request.';
             $body = $request->reason;
             send_notification($user, $title, $body, $type);
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $semester = $this->cache->getDefaultSemesterData();
+            if ($semester) {
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Leave', $leave->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, $semester->id);
+            } else {
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Leave', $leave->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
 
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
@@ -288,6 +300,13 @@ class LeaveController extends Controller
             }
             $leave->file()->delete();
             $leave->delete();
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $semester = $this->cache->getDefaultSemesterData();
+            if ($semester) {
+                $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\Leave', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, $semester->id);
+            } else {
+                $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\Leave', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {

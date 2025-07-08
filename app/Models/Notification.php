@@ -41,4 +41,9 @@ class Notification extends Model
         }
         return null;
     }
+
+    public function session_years_trackings()
+    {
+        return $this->hasMany(SessionYearsTracking::class, 'modal_id', 'id')->where('modal_type', 'App\Models\Notification');
+    }
 }

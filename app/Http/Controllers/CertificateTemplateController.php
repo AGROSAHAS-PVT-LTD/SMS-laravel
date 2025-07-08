@@ -11,11 +11,13 @@ use App\Repositories\User\UserInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
+use Illuminate\Support\Facades\Auth;
 
 class CertificateTemplateController extends Controller
 {
@@ -30,8 +32,9 @@ class CertificateTemplateController extends Controller
     private ExamInterface $exam;
     private SessionYearInterface $sessionYear;
     private FormFieldsInterface $formFields;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(CertificateTemplateInterface $certificateTemplate, CachingService $cache, UserInterface $user, ClassSectionInterface $classSection, ExamInterface $exam, SessionYearInterface $sessionYear, FormFieldsInterface $formFields)
+    public function __construct(CertificateTemplateInterface $certificateTemplate, CachingService $cache, UserInterface $user, ClassSectionInterface $classSection, ExamInterface $exam, SessionYearInterface $sessionYear, FormFieldsInterface $formFields, SessionYearsTrackingsService $sessionYearsTrackingsService)
     {
         $this->certificateTemplate = $certificateTemplate;
         $this->cache = $cache;
@@ -40,7 +43,7 @@ class CertificateTemplateController extends Controller
         $this->exam = $exam;
         $this->sessionYear = $sessionYear;
         $this->formFields = $formFields;
-
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index()
@@ -110,7 +113,9 @@ class CertificateTemplateController extends Controller
             if ($request->hasFile('background_image')) {
                 $data['background_image'] = $request->background_image;
             }
-            $this->certificateTemplate->create($data);
+            $certificateTemplate = $this->certificateTemplate->create($data);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\CertificateTemplate', $certificateTemplate->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
@@ -135,7 +140,7 @@ class CertificateTemplateController extends Controller
         $order = request('order', 'DESC');
         $search = request('search');
 
-        $sql = $this->certificateTemplate->builder()
+        $sql = $this->certificateTemplate->builder()->with('session_years_trackings')
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('id', 'LIKE', "%$search%")
@@ -143,6 +148,11 @@ class CertificateTemplateController extends Controller
                     ->orwhere('type', 'LIKE', "%$search%");
                 });
             });
+
+        $sessionYear = $this->cache->getDefaultSessionYear();
+        $sql->whereHas('session_years_trackings', function ($q) use ($sessionYear) {
+            $q->where('session_year_id', $sessionYear->id);
+        });
 
         $total = $sql->count();
 
@@ -251,6 +261,8 @@ class CertificateTemplateController extends Controller
         try {
             DB::beginTransaction();
             $this->certificateTemplate->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\CertificateTemplate', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
@@ -349,6 +361,12 @@ class CertificateTemplateController extends Controller
                 'fields' => $fields
             ];
             $this->certificateTemplate->update($id, $value);
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            if ($sessionYear) {
+                $this->sessionYearsTrackingsService->updateSessionYearsTracking('App\Models\CertificateTemplate', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
+
             ResponseService::successResponse('Data Updated Successfully');
             
         } catch (Throwable $e) {
@@ -493,7 +511,9 @@ class CertificateTemplateController extends Controller
                 }
             }
             if ($formField->form_field->type == 'dropdown') {
-                $extraStudentDetails['{'.$formField->form_field->name.'}'] = $formField->form_field->default_values[$formField->data];
+                if($formField->form_field && isset($formField->form_field->default_values[$formField->data])) {
+                    $extraStudentDetails['{'.$formField->form_field->name.'}'] = $formField->form_field->default_values[$formField->data];
+                }
             }
         }
         return $extraStudentDetails;
@@ -540,7 +560,7 @@ class CertificateTemplateController extends Controller
             
             $user_id = explode(",",$request->user_id);
 
-            $users = $this->user->builder()->with('staff','roles')->whereIn('id',$user_id)->get();
+            $users = $this->user->builder()->with('staff','roles','extra_student_details.form_field')->whereIn('id',$user_id)->get();
             $user_data = array();
             foreach ($users as $key => $user) {
                 $user_data[] = [
@@ -588,6 +608,7 @@ class CertificateTemplateController extends Controller
             '{qualification}' => $user->staff->qualification,
             '{session_year}' => $sessionYear->name,
             '{experience}' => number_format($experience, 1),
+            ...$this->extraFormFields($user)
             // Add more placeholders as needed
         ];
 

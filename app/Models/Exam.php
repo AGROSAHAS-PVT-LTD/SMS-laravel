@@ -19,7 +19,9 @@ class Exam extends Model {
         'start_date',
         'end_date',
         'school_id',
-        'publish'
+        'publish',
+        'last_result_submission_date',
+        'class_id'
     ];
 
     protected $hidden = ['created_at','updated_at'];
@@ -50,37 +52,39 @@ class Exam extends Model {
         return $this->belongsTo(Semester::class, 'semester_id')->withTrashed();
     }
     public function scopeOwner($query) {
+        if (Auth::user()) {
 
-        if (Auth::user()->school_id) {
-            if (Auth::user()->hasRole('School Admin')) {
+            if (Auth::user()->school_id) {
+                if (Auth::user()->hasRole('School Admin')) {
+                    return $query->where('school_id', Auth::user()->school_id);
+                }
+    
+                if(Auth::user()->hasRole('Teacher')){
+                    $classTeacherData = ClassTeacher::where('teacher_id',Auth::user()->id)->with('class_section')->get();
+                    $subjectTeacherData = SubjectTeacher::where('teacher_id',Auth::user()->id)->with('class_section')->get();
+                    $subjectTeacherData = $subjectTeacherData->pluck('class_section.class_id')->toArray();
+                    $classIds = $classTeacherData->pluck('class_id')->toArray();
+                    $classIds = array_merge($subjectTeacherData, $classIds);
+                    $classIds = array_unique($classIds);
+                    return $query->whereIn('class_id',$classIds)->where('school_id', Auth::user()->school_id);
+                }
+    
+                if (Auth::user()->hasRole('Student')) {
+                    return $query->where('school_id', Auth::user()->school_id);
+                }
                 return $query->where('school_id', Auth::user()->school_id);
             }
-
-            if(Auth::user()->hasRole('Teacher')){
-                $classTeacherData = ClassTeacher::where('teacher_id',Auth::user()->id)->with('class_section')->get();
-                $subjectTeacherData = SubjectTeacher::where('teacher_id',Auth::user()->id)->with('class_section')->get();
-                $subjectTeacherData = $subjectTeacherData->pluck('class_section.class_id')->toArray();
-                $classIds = $classTeacherData->pluck('class_id')->toArray();
-                $classIds = array_merge($subjectTeacherData, $classIds);
-                $classIds = array_unique($classIds);
-                return $query->whereIn('class_id',$classIds)->where('school_id', Auth::user()->school_id);
-            }
-
-            if (Auth::user()->hasRole('Student')) {
-                return $query->where('school_id', Auth::user()->school_id);
-            }
-            return $query->where('school_id', Auth::user()->school_id);
-        }
-        if (!Auth::user()->school_id) {
-            if (Auth::user()->hasRole('Super Admin')) {
+            if (!Auth::user()->school_id) {
+                if (Auth::user()->hasRole('Super Admin')) {
+                    return $query;
+                }
+                if (Auth::user()->hasRole('Guardian')) {
+                    $childId = request('child_id');
+                    $studentAuth = Students::where('id',$childId)->first();
+                    return $query->where('school_id', $studentAuth->school_id);
+                }
                 return $query;
             }
-            if (Auth::user()->hasRole('Guardian')) {
-                $childId = request('child_id');
-                $studentAuth = Students::where('id',$childId)->first();
-                return $query->where('school_id', $studentAuth->school_id);
-            }
-            return $query;
         }
         return $query;
     }

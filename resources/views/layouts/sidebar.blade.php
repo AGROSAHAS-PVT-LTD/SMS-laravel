@@ -2,7 +2,7 @@
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
 
     <div class="sidebar-search pl-4 pr-4">
-        <input type="text" id="menu-search" placeholder="{{ __('search_menu') }}" class="form-control menu-search border-theme">
+        <input type="text" id="menu-search" placeholder="{{ __('search_menu') }}" class="form-control menu-search border-theme form-control-sm">
     </div>
 
     <div class="sidebar-search pl-4 pr-4 mt-2">
@@ -36,7 +36,7 @@
                         @endcan
 
                         @can('subject-create')
-                            <li class="nav-item"><a href="{{ route('subject.index') }}" class="nav-link"> {{ __('subject') }} </a></li>
+                            <li class="nav-item"><a href="{{ route('subjects.index') }}" class="nav-link"> {{ __('subject') }} </a></li>
                         @endcan
 
                         @can('semester-create')
@@ -56,16 +56,18 @@
                             <li class="nav-item"><a href="{{ route('class.subject.index') }}" class="nav-link"> {{ __('Class Subject') }} </a></li>
                         @endcan
 
-                        @if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 1)
-                            @can('class-group-create')
-                                <li class="nav-item"><a href="{{ route('class-group.index') }}" class="nav-link"> {{ __('class_group') }} </a></li>
-                            @endcan 
-                        @endif
+                        @can('class-group-create')
+                            <li class="nav-item"><a href="{{ route('class-group.index') }}" class="nav-link"> {{ __('class_group') }} </a></li>
+                        @endcan 
                         
 
 
                         @can('class-section-create')
                             <li class="nav-item"><a href="{{ route('class-section.index') }}" class="nav-link">{{ __('Class Section & Teachers') }} </a></li>
+                        @endcan
+
+                        @can('assign-elective-subject-list')
+                            <li class="nav-item"><a href="{{ route('assign.elective.subject.index') }}" class="nav-link">{{ __('Assign Elective Subject') }} </a></li>
                         @endcan
 
                         @canany('promote-student-create','transfer-student-create')
@@ -80,6 +82,17 @@
             </li>
         @endcanany
 
+        {{-- Custom Form Fields --}}
+        @role('School Admin')
+            @canany(['form-fields-list', 'form-fields-create', 'form-fields-edit', 'form-fields-delete'])
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('form-fields.index') }}">
+                        <i class="fa fa-list-alt menu-icon"></i>
+                        <span class="menu-title"> {{ __('custom_fields') }} </span>
+                    </a>
+                </li>
+            @endcan
+        @endrole
 
         {{-- Class Section For Teacher --}}
         @role('Teacher')
@@ -102,11 +115,11 @@
                 <div class="collapse" id="student-menu">
                     <ul class="nav flex-column sub-menu">
                         {{-- Student Addmission Form Manage --}}
-                        @canany(['form-fields-list', 'form-fields-create', 'form-fields-edit', 'form-fields-delete'])
+                        {{-- @canany(['form-fields-list', 'form-fields-create', 'form-fields-edit', 'form-fields-delete'])
                             <li class="nav-item">
                                 <a href="{{ route('form-fields.index') }}" class="nav-link">{{ __('admission_form_fields') }}</i></a>
                             </li>
-                        @endcan
+                        @endcan --}}
                         @can('student-create')
                             <li class="nav-item"><a href="{{ route('students.create') }}" class="nav-link">{{ __('student_admission') }}</a></li>
                         @endcan
@@ -343,7 +356,7 @@
         @endcan
 
         {{-- exam --}}
-        @canany(['exam-create', 'exam-upload-marks', 'grade-create', 'exam-result'])
+        @canany(['exam-create', 'exam-upload-marks', 'grade-create', 'exam-result','view-exam-marks'])
             <li class="nav-item">
                 <a class="nav-link" data-toggle="collapse" href="#exam-menu" aria-expanded="false"
                    aria-controls="exam-menu" data-access="@hasFeatureAccess('Exam Management')">
@@ -359,6 +372,13 @@
                                 </a>
                             </li>
                         @endcan
+                        @can('view-exam-marks')
+                            <li class="nav-item">
+                                <a href="{{ route('exam.view-marks') }}" class="nav-link" data-name="{{ Auth::user()->getRoleNames()[0] }}" data-access="@hasFeatureAccess('Exam Management')"> {{ __('Unpublished Exam Marks') }}
+                                </a>
+                            </li>
+                        @endcan
+                      
                         @can('exam-upload-marks')
 
                             <li class="nav-item">
@@ -372,11 +392,18 @@
                                     {{ __('upload') }} {{ __('Exam Marks') }}
                                 </a>
                             </li>
+
+                            <li class="nav-item">
+                                <a href="{{ route('exam.bulk-upload-marks') }}" class="nav-link" data-name="{{ Auth::user()->getRoleNames()[0] }}" data-access="@hasFeatureAccess('Exam Management')">
+                                    {{ __('bulk upload') }} {{ __('Exam Marks') }}
+                                </a>
+                            </li>
+                            
                         @endcan
                         @can('exam-result')
                             <li class="nav-item">
                                 <a href="{{ route('exams.get-result') }}" class="nav-link" data-name="{{ Auth::user()->getRoleNames()[0] }}" data-access="@hasFeatureAccess('Exam Management')">
-                                    {{ __('offline_exam_result') }}
+                                    {{ __('Published Exam Result') }}
                                 </a>
                             </li>
                         @endcan
@@ -488,6 +515,31 @@
             </li>
         @endcanany
 
+        {{-- report --}}
+        @role('School Admin')
+            <li class="nav-item">
+                <a class="nav-link" data-toggle="collapse" href="#report-menu" aria-expanded="false" aria-controls="report-menu">
+                    <i class="fa fa-file-text menu-icon"></i>
+                    <span class="menu-title">{{ __('Report') }}</span>
+                    <i class="menu-arrow"></i>
+                </a>
+                <div class="collapse" id="report-menu">
+                    <ul class="nav flex-column sub-menu">
+                        <li class="nav-item">
+                            <a href="{{ route('reports.student.student-reports') }}" class="nav-link">
+                                {{ __('Student Reports') }}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ route('reports.exam.exam-reports') }}" class="nav-link">
+                                {{ __('Exam Reports') }}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+        @endrole
+
         @if (Auth::user()->school_id && Auth::user()->staff)
             <li class="nav-item">
                 <a href="{{ route('payroll.slip.index') }}" class="nav-link" data-name="{{ Auth::user()->getRoleNames()[0] }}" data-access="@hasFeatureAccess('Expense Management')">
@@ -498,12 +550,38 @@
         @endif
 
         {{-- Schools --}}
-        @canany(['schools-list', 'schools-create', 'schools-edit', 'schools-delete'])
+        @canany(['schools-list','schools-create', 'schools-edit', 'schools-delete','school-custom-field-list','school-custom-field-create','school-custom-field-edit','school-custom-field-delete'])
             <li class="nav-item">
-                <a href="{{ route('schools.index') }}" class="nav-link">
+                <a class="nav-link" data-toggle="collapse" href="#school-menu" aria-expanded="false" aria-controls="school-menu">
                     <i class="fa fa-university menu-icon"></i>
                     <span class="menu-title">{{ __('schools') }}</span>
+                    <i class="menu-arrow"></i>
                 </a>
+                <div class="collapse" id="school-menu">
+                    <ul class="nav flex-column sub-menu">
+                        @canany(['school-custom-field-list','school-custom-field-create','school-custom-field-edit','school-custom-field-delete'])
+                            <li class="nav-item">
+                                <a href="{{ route('school-custom-fields.index') }}" class="nav-link">
+                                    {{ __('school_register_form_fields') }}
+                                </a>
+                            </li>
+                            @if(isset($systemSettings['school_inquiry']) && $systemSettings['school_inquiry'] == 1)
+                                <li class="nav-item">
+                                    <a href="{{ route('school-inquiry.index') }}" class="nav-link">
+                                        {{ __('school_inquires') }}
+                                    </a>
+                                </li>  
+                            @endif
+                        @endcanany 
+                        @canany(['schools-list','schools-create', 'schools-edit', 'schools-delete']) 
+                            <li class="nav-item">
+                                <a href="{{ route('schools.index') }}" class="nav-link">
+                                    {{ __('schools_details') }}
+                                </a>
+                            </li> 
+                        @endcanany
+                    </ul>
+                </div>
             </li>
         @endcanany
 
@@ -774,7 +852,6 @@
             </li>
         @endcan
 
-
         {{-- Subscription Plans & Addons --}}
         @role('School Admin')
         <li class="nav-item">
@@ -816,6 +893,15 @@
 
         @endrole
 
+        {{-- Contact Inquiry --}}
+        @canany(['contact-inquiry-list'])
+        <li class="nav-item">
+            <a href="{{ url('contact-inquiry') }}" class="nav-link">
+                <i class="fa fa-envelope-o menu-icon"></i>
+                <span class="menu-title">{{ __('Contact Inquiry') }}</span>
+            </a>
+        </li>
+        @endcanany
         {{-- Super admin web settings --}}
         @can('web-settings')
         <li class="nav-item">
@@ -846,8 +932,7 @@
         @endcan
 
         {{-- School web page setttings --}}
-        {{-- @if (isset($systemSettings['school_website_feature']) && $systemSettings['school_website_feature'] == 1) --}}
-            @can('school-web-settings')
+        @can('school-web-settings')
             <li class="nav-item">
                 <a class="nav-link" data-toggle="collapse" href="#web_settings" aria-expanded="false"
                 aria-controls="web_settings-menu" data-access="@hasFeatureAccess('Website Management')">
@@ -869,8 +954,8 @@
                     </ul>
                 </div>
             </li>
-            @endcan
-        {{-- @endif --}}
+        @endcan
+    
         
 
 
@@ -1000,14 +1085,33 @@
                             </li>
                         @endcan --}}
 
+                        
+
+                        @can('contact-us')
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('system-settings.contact-us') }}"> {{ __('contact_us') }}</a>
+                            </li>
+                        @endcan
+                        @can('about-us')
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('system-settings.about-us') }}"> {{ __('about_us') }}
+                                </a>
+                            </li>
+                        @endcan
+
                         @hasrole('School Admin')
+                        
+                        {{-- Privacy Policy --}}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('school-settings.privacy-policy') }}">{{ __('privacy_policy') }}</a>
+                        </li>
+
+                        {{-- Terms & Conditions --}}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('school-settings.terms-condition') }}">{{ __('terms_condition') }}</a>
                         </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('school-settings.privacy-policy') }}">{{ __('privacy_policy') }}</a>
-                        </li>
+                        {{-- Refund Cancellation --}}
 
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('school-settings.refund-cancellation') }}">{{ __('refund_cancellation') }}</a>
@@ -1020,32 +1124,13 @@
                                 <a class="nav-link" href="{{ route('system-settings.privacy-policy') }}">{{ __('privacy_policy') }}</a>
                             </li>
                         @endcan
-                        @can('contact-us')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('system-settings.contact-us') }}"> {{ __('contact_us') }}</a>
-                            </li>
-                        @endcan
-                        @can('about-us')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('system-settings.about-us') }}"> {{ __('about_us') }}
-                                </a>
-                            </li>
-                        @endcan
+
                         @can('terms-condition')
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('system-settings.terms-condition') }}">{{ __('terms_condition') }}</a>
                             </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('system-settings.refund-cancellation') }}">{{ __('refund_cancellation') }}</a>
-                            </li>
                         @endcan
 
-                        @can('school-terms-condition')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('system-settings.school-terms-condition') }}">{{ __('school_terms_condition') }}</a>
-                            </li>
-                        @endcan
                     </ul>
                 </div>
             </li>
@@ -1056,6 +1141,24 @@
                 <a class="nav-link" href="{{ route('system-update.index') }}">
                     <i class="fa fa-cloud-download menu-icon"></i>
                     <span class="menu-title">{{ __('system_update') }}</span>
+                </a>
+            </li>
+        @endif
+
+        @if (Auth::user()->hasRole(['Super Admin','School Admin']))
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('database-backup.index') }}">
+                    <i class="fa fa-database menu-icon"></i>
+                    <span class="menu-title">{{ __('database_backup') }}</span>
+                </a>
+            </li>
+        @endif
+
+        @if (Auth::user()->hasRole(['Super Admin']))
+            <li class="nav-item">
+                <a class="nav-link" href="https://wrteam-in.github.io/eSchool-SaaS-Doc/" target="_blank">
+                    <i class="fa fa-book menu-icon"></i>
+                    <span class="menu-title">{{ __('Documentation') }}</span>
                 </a>
             </li>
         @endif

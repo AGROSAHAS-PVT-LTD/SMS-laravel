@@ -15,7 +15,7 @@ class ExpenseCategory extends Model
 
     public function scopeOwner()
     {
-        if (Auth::user()->school_id) {
+        if (Auth::user() && Auth::user()->school_id) {
             return $this->where('school_id',Auth::user()->school_id);
         }
         return $this;

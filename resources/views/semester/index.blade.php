@@ -138,7 +138,7 @@
                                 </select>
                             </div>
                             <div class="form-group col-sm-12 col-md-4">
-                                <label for="edit-end-month">{{ __('Start Month') }} <span class="text-danger">*</span></label>
+                                <label for="edit-end-month">{{ __('End Month') }} <span class="text-danger">*</span></label>
                                 <select name="end_month" id="edit-end-month" class="form-control">
                                     <option value="1">{{__("January")}}</option>
                                     <option value="2">{{__("February")}}</option>

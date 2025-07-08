@@ -5,9 +5,12 @@ namespace App\Services\Payment;
 interface PaymentInterface {
     public function createPaymentIntent($amount, $customMetaData);
 
-    public function retrievePaymentIntent($paymentId);
+    public function createAndFormatPaymentIntent($amount, $customMetaData): array;
+
+    public function retrievePaymentIntent($paymentId): array;
 
     public function minimumAmountValidation($currency, $amount);
-//
-//    public function checkPayment(Order $order): PaymentStatus;
+
+    public function formatPaymentIntent($id, $amount, $currency, $status, $metadata, $paymentIntent): array;
+
 }

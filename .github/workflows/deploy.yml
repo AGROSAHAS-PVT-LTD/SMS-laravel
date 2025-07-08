@@ -20,20 +20,6 @@ jobs:
         extensions: mbstring, xml, zip, curl, mysql
         tools: composer:v2
 
-    - name: 🧩 Install Composer Dependencies
-      run: composer install --optimize-autoloader --no-dev --no-progress --no-interaction --prefer-dist
-
-    - name: 🧱 Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
-
-    - name: 📦 Install NPM Dependencies
-      run: |
-        npm ci
-        npx update-browserslist-db@latest
-        npm install vue-loader@latest
-
     - name: 🚀 Synchronize Files to Server
       uses: easingthemes/ssh-deploy@v2.1.5
       env:
@@ -50,7 +36,8 @@ jobs:
           --exclude vendor
           --exclude .git
           --exclude .github
-          
+          --exclude storage
+          --exclude bootstrap/cache
 
     - name: ⚙️ Run Remote Laravel Artisan Commands
       uses: appleboy/ssh-action@v0.1.6

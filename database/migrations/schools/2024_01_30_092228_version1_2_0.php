@@ -1,14 +1,9 @@
 <?php
 
-use App\Models\AddonSubscription;
 use App\Models\Fee;
-use App\Models\Package;
 use App\Models\School;
 use App\Models\SchoolSetting;
-use App\Models\Subscription;
-use App\Models\SystemSetting;
 use App\Models\User;
-use App\Services\CachingService;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 
@@ -20,16 +15,6 @@ return new class extends Migration {
         Schema::table('packages', static function (Blueprint $table) {
             $table->integer('days')->default(1)->after('staff_charge');
         });
-        $systemSettings = app(CachingService::class)->getSystemSettings();
-        $days = $systemSettings['billing_cycle_in_days'] ?? 0;
-        if ($days == null || empty($days)) {
-            $subscription = Subscription::latest()->first();
-            $days = $subscription->billing_cycle ?? 0;
-        }
-        foreach (Package::get() as $key => $package) {
-            $package->days = $days;
-            $package->save();
-        }
 
         Schema::create('subscription_bill_payments', static function (Blueprint $table) {
             $table->id();
@@ -45,10 +30,6 @@ return new class extends Migration {
         Schema::table('addon_subscriptions', static function (Blueprint $table) {
             $table->foreignId('subscription_id')->after('id')->nullable(true)->references('id')->on('subscriptions')->onDelete('cascade');
         });
-
-        foreach (Subscription::get() as $key => $subscription) {
-            AddonSubscription::where('school_id', $subscription->school_id)->whereDate('end_date', $subscription->end_date)->withTrashed()->update(['subscription_id' => $subscription->id]);
-        }
 
         Schema::table('fees', static function (Blueprint $table) {
             $table->float('due_charges_amount')->after('due_charges');

@@ -8,6 +8,7 @@ use Illuminate\Foundation\Auth\SendsPasswordResetEmails;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Log;
 
 class ForgotPasswordController extends Controller
 {
@@ -26,6 +27,7 @@ class ForgotPasswordController extends Controller
 
     public function sendResetLinkEmail(Request $request)
     {
+        Log::info('******',[$request->all()]);
         $request->validate([
             'email' => 'required|email'
         ]);
@@ -45,7 +47,7 @@ class ForgotPasswordController extends Controller
             $response = $this->broker()->sendResetLink(
                 $request->only('email')
             );
-
+           
             switch ($response) {
                 case \Illuminate\Auth\Passwords\PasswordBroker::RESET_LINK_SENT:
                     return back()->with('status', trans($response));

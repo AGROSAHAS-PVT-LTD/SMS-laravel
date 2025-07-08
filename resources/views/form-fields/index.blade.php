@@ -43,6 +43,14 @@
                                         <label class="custom-control-label" for="customSwitch1"></label>
                                     </div>
                                 </div>
+                                <div class="form-group col-sm-12 col-md-2">
+                                    <label>{{ __('user_type') }} <span class="text-danger">*</span></label>
+                                    <select name="user_type" class="form-control"> {{-- 1 => Student, 2 => Teacher/Staff --}}
+                                        <option value="" selected>{{ __('select_user_type') }}</option>
+                                        <option value="1">{{__('Student')}}</option>
+                                        <option value="2">{{__('Teacher')}}/{{__('Staff')}}</option>
+                                    </select>
+                                </div>
                             </div>
 
                             {{-- Option Section --}}
@@ -68,31 +76,6 @@
                             </div>
                             {{-- End Of Option Section --}}
 
-                            {{-- File Upload Option Section --}}
-                            {{-- <div class="file-option-section mt-4">
-                                <hr>
-                                <div class="row">
-                                    <div class="form-group col-sm-12 col-md-4">
-                                        <label>{{ __('gender') }} <span class="text-danger">*</span></label><br>
-                                        <div class="d-flex">
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    {!! Form::radio('file-upload', 'single') !!}
-                                                    {{ __('single') }}
-                                                </label>
-                                            </div>
-                                            <div class="form-check form-check-inline">
-                                                <label class="form-check-label">
-                                                    {!! Form::radio('file-upload', 'multiple') !!}
-                                                    {{ __('multiple') }}
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div> --}}
-                            {{-- End of File Upload Option Section --}}
-
                             <input class="btn btn-theme float-right ml-3" id="create-btn" type="submit" value={{ __('submit') }}>
                         </form>
                     </div>
@@ -106,6 +89,16 @@
                         <h4 class="card-title">
                             {{ __('list') . ' ' . __('form-fields') }}
                         </h4>
+                        <div class="row mt-3" id="toolbar">
+                            <div class="form-group col-sm-12 col-md-4">
+                                <label class="filter-menu">{{ __('user_type') }} <span class="text-danger">*</span></label>
+                                <select required name="filter_all_user_type" class="form-control" id="filter_all_user_type">
+                                    <option value="">{{ __('all_user_type') }}</option>
+                                    <option value="1">{{__('Student')}}</option>
+                                    <option value="2">{{__('Teacher')}}/{{__('Staff')}}</option>
+                                </select>
+                            </div> 
+                        </div>
                         <div class="d-flex justify-content-end">
                             <button type="button" class="btn btn-secondary" id="preview-fields" data-toggle="modal" data-target="#previewFieldModal">{{__('preview').' '.__('form-fields')}}</button>
                         </div>
@@ -121,16 +114,16 @@
                                data-mobile-responsive="true" data-use-row-attr-func="true"
                                data-reorderable-rows="true" data-maintain-selected="true"
                                data-export-data-type='all' data-export-options='{ "fileName": "{{__('form-fields')}}-<?= date(' d-m-y') ?>" ,"ignoreColumn":["operate"]}'
-                               data-show-export="true" data-query-params="queryParams" data-escape="true">
+                               data-show-export="true" data-query-params="FormFieldQueryParams" data-escape="true">
                             <thead>
                             <tr>
                                 <th scope="col" data-field="id" data-sortable="true" data-visible="false">{{ __('id') }}</th>
                                 <th scope="col" data-field="no">{{ __('no.') }}</th>
                                 <th scope="col" data-field="name">{{ __('name') }}</th>
                                 <th scope="col" data-field="type">{{ __('type') }}</th>
+                                <th scope="col" data-field="user_type">{{ __('user_type') }}</th>
                                 <th scope="col" data-field="is_required" data-formatter="yesAndNoStatusFormatter">{{ __('is').' '.__('required') }}</th>
                                 <th scope="col" data-field="default_values" data-formatter="formFieldDefaultValuesFormatter">{{ __('Default Values') }}</th>
-                                <th scope="col" data-field="other" data-sortable="false" data-visible="false" data-formatter="formFieldOtherValueFormatter">{{ __('other') }}</th>
                                 <th scope="col" data-field="rank" data-sortable="false">{{ __('rank') }}</th>
                                 <th scope="col" data-field="operate" data-sortable="false" data-events="formFieldsEvents" data-escape="false">{{ __('action') }}</th>
                             </tr>
@@ -207,13 +200,15 @@
                                     @elseif($data->type == 'checkbox')
                                         <div class="row form-check-inline">
                                             @foreach ($data->default_values as $value)
-                                                <div class="col-md-2 form-check mr-4">
-                                                    <label class="form-check-label">
-                                                        <input type="checkbox" class="form-check-input chkclass" value="{{$value}}">{{ $value }}
+                                                <div class="col-6 col-md-4 form-check mr-4">
+                                                    <label class="form-check-label" style="white-space: normal; word-wrap: break-word;">
+                                                        <input type="checkbox" class="form-check-input chkclass" value="{{ $value }}">
+                                                        {{ $value }}
                                                     </label>
                                                 </div>
                                             @endforeach
                                         </div>
+                                    
 
                                         {{-- Textarea Field --}}
                                     @elseif($data->type == 'textarea')

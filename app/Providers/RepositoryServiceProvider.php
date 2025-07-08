@@ -2,7 +2,8 @@
 
 namespace App\Providers;
 
-
+use App\Models\SchoolInquiry;
+use App\Models\OnlineExamQuestionCommon;
 use App\Repositories\FeesClassType\FeesClassTypeInterface;
 use App\Repositories\FeesInstallment\FeesInstallmentInterface;
 use Illuminate\Support\ServiceProvider;
@@ -114,6 +115,8 @@ use App\Repositories\AddonSubscription\AddonSubscriptionInterface;
 use App\Repositories\AnnouncementClass\AnnouncementClassInterface;
 use App\Repositories\AddonSubscription\AddonSubscriptionRepository;
 use App\Repositories\AnnouncementClass\AnnouncementClassRepository;
+use App\Repositories\AssignmentCommon\AssignmentCommonInterface;
+use App\Repositories\AssignmentCommon\AssignmentCommonRepository;
 use App\Repositories\OnlineExamQuestion\OnlineExamQuestionInterface;
 use App\Repositories\PaymentTransaction\PaymentTransactionInterface;
 use App\Repositories\OnlineExamQuestion\OnlineExamQuestionRepository;
@@ -128,6 +131,8 @@ use App\Repositories\CertificateTemplate\CertificateTemplateInterface;
 use App\Repositories\CertificateTemplate\CertificateTemplateRepository;
 use App\Repositories\Chat\ChatInterface;
 use App\Repositories\Chat\ChatRepository;
+use App\Repositories\ContactInquiry\ContactInquiryInterface;
+use App\Repositories\ContactInquiry\ContactInquiryRepository;
 use App\Repositories\ClassGroup\ClassGroupInterface;
 use App\Repositories\ClassGroup\ClassGroupRepository;
 use App\Repositories\DatabaseBackup\DatabaseBackupInterface;
@@ -149,10 +154,14 @@ use App\Repositories\LeaveDetail\LeaveDetailInterface;
 use App\Repositories\LeaveDetail\LeaveDetailRepository;
 use App\Repositories\LeaveMaster\LeaveMasterInterface;
 use App\Repositories\LeaveMaster\LeaveMasterRepository;
+use App\Repositories\LessonsCommon\LessonsCommonInterface;
+use App\Repositories\LessonsCommon\LessonsCommonRepository;
 use App\Repositories\Message\MessageInterface;
 use App\Repositories\Message\MessageRepository;
 use App\Repositories\Notification\NotificationInterface;
 use App\Repositories\Notification\NotificationRepository;
+use App\Repositories\OnlineExamCommon\OnlineExamCommonInterface;
+use App\Repositories\OnlineExamCommon\OnlineExamCommonRepository;
 use App\Repositories\PaymentConfiguration\PaymentConfigurationRepository;
 use App\Repositories\OnlineExamStudentAnswer\OnlineExamStudentAnswerInterface;
 use App\Repositories\StudentOnlineExamStatus\StudentOnlineExamStatusInterface;
@@ -161,6 +170,7 @@ use App\Repositories\StudentOnlineExamStatus\StudentOnlineExamStatusRepository;
 use App\Repositories\OnlineExamQuestionChoice\OnlineExamQuestionChoiceInterface;
 use App\Repositories\OnlineExamQuestionOption\OnlineExamQuestionOptionInterface;
 use App\Repositories\OnlineExamQuestionChoice\OnlineExamQuestionChoiceRepository;
+use App\Repositories\OnlineExamQuestionCommon\OnlineExamQuestionCommonRepository;
 use App\Repositories\OnlineExamQuestionOption\OnlineExamQuestionOptionRepository;
 use App\Repositories\StaffSupportSchool\StaffSupportSchoolInterface;
 use App\Repositories\StaffSupportSchool\StaffSupportSchoolRepository;
@@ -176,6 +186,15 @@ use App\Repositories\StaffPayroll\StaffPayrollInterface;
 use App\Repositories\StaffPayroll\StaffPayrollRepository;
 use App\Repositories\StaffSalary\StaffSalaryInterface;
 use App\Repositories\StaffSalary\StaffSalaryRepository;
+use App\Repositories\SchoolInquiry\SchoolInquiryInterface;
+use App\Repositories\SchoolInquiry\SchoolInquiryRepository;
+use App\Repositories\ExtraSchoolData\ExtraSchoolDataInterface;
+use App\Repositories\ExtraSchoolData\ExtraSchoolDataRepository;
+use App\Repositories\TopicCommon\TopicCommonInterface;
+use App\Repositories\TopicCommon\TopicCommonRepository;
+use App\Repositories\OnlineExamQuestionCommon\OnlineExamQuestionCommonInterface;
+use App\Repositories\SessionYearsTrackings\SessionYearsTrackingsInterface;
+use App\Repositories\SessionYearsTrackings\SessionYearsTrackingsRepository;
 use Notification;
 
 class RepositoryServiceProvider extends ServiceProvider {
@@ -209,6 +228,7 @@ class RepositoryServiceProvider extends ServiceProvider {
         $this->app->bind(AnnouncementInterface::class, AnnouncementRepository::class);
         $this->app->bind(StudentSubjectInterface::class, StudentSubjectRepository::class);
         $this->app->bind(SessionYearInterface::class, SessionYearRepository::class);
+        $this->app->bind(SessionYearsTrackingsInterface::class, SessionYearsTrackingsRepository::class);
         $this->app->bind(ExamInterface::class, ExamRepository::class);
         $this->app->bind(ExamTimetableInterface::class, ExamTimetableRepository::class);
         $this->app->bind(GradesInterface::class, GradesRepository::class);
@@ -272,9 +292,14 @@ class RepositoryServiceProvider extends ServiceProvider {
         $this->app->bind(MessageInterface::class, MessageRepository::class);
         $this->app->bind(AttachmentInterface::class, AttachmentRepository::class);
         $this->app->bind(DatabaseBackupInterface::class, DatabaseBackupRepository::class);
-
-        
-
+        $this->app->bind(SchoolInquiryInterface::class, SchoolInquiryRepository::class);
+        $this->app->bind(ExtraSchoolDataInterface::class, ExtraSchoolDataRepository::class);
+        $this->app->bind(LessonsCommonInterface::class, LessonsCommonRepository::class);
+        $this->app->bind(TopicCommonInterface::class, TopicCommonRepository::class);
+        $this->app->bind(AssignmentCommonInterface::class, AssignmentCommonRepository::class);
+        $this->app->bind(OnlineExamCommonInterface::class, OnlineExamCommonRepository::class);
+        $this->app->bind(OnlineExamQuestionCommonInterface::class, OnlineExamQuestionCommonRepository::class);
+        $this->app->bind(ContactInquiryInterface::class, ContactInquiryRepository::class);
     }
 
     /**

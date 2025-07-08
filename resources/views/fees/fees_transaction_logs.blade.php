@@ -32,6 +32,17 @@
                                 <label class="filter-menu" for="filter_paid_status"> {{ __('month') }} </label>
                                 {!! Form::select('month', $months, date('n'), ['class' => 'form-control paid-month','placeholder' => __('all')]) !!}
                             </div>
+
+                            <div class="form-group col-md-3">
+                                <label class="filter-menu" for="session_year_id"> {{ __('Session Years') }} </label>
+                                <select name="session_year_id" id="filter_session_year_id" class="form-control">
+                                    @foreach ($session_year_all as $session_year)
+                                        <option value="{{ $session_year->id }}"
+                                            {{ $session_year->default ? 'selected' : '' }}> {{ $session_year->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
                         </div>
                         <table aria-describedby="mydesc" class='table' id='table_list'
                                data-toggle="table" data-url="{{ route('fees.transactions.log.list', 1) }}"

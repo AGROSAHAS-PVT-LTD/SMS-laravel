@@ -612,19 +612,19 @@ return new class extends Migration
         // End online exam question
 
         // Gallery
-        $rows = Gallery::get();
-        foreach ($rows as $key => $row) {
-            $newFilePath = '';
-            $oldFilePath = $row->getRawOriginal('thumbnail');
-            if ($oldFilePath && Storage::disk('public')->exists($oldFilePath)) {
-                if ($row->school_id) {
-                    $newFilePath = $row->school_id.'/'. $row->getRawOriginal('thumbnail');
-                }
-                Storage::disk('public')->move($oldFilePath, $newFilePath);
-                $row->thumbnail = $newFilePath;
-                $row->save();
-            }
-        }
+        // $rows = Gallery::get();
+        // foreach ($rows as $key => $row) {
+        //     $newFilePath = '';
+        //     $oldFilePath = $row->getRawOriginal('thumbnail');
+        //     if ($oldFilePath && Storage::disk('public')->exists($oldFilePath)) {
+        //         if ($row->school_id) {
+        //             $newFilePath = $row->school_id.'/'. $row->getRawOriginal('thumbnail');
+        //         }
+        //         Storage::disk('public')->move($oldFilePath, $newFilePath);
+        //         $row->thumbnail = $newFilePath;
+        //         $row->save();
+        //     }
+        // }
         // End gallery
 
         // Backgroup image
@@ -678,22 +678,22 @@ return new class extends Migration
 
 
         // Extra student data
-        $rows = ExtraStudentData::whereHas('form_field', function($q) {
-            $q->where('type','file');
-        })->get();
-        foreach ($rows as $key => $row) {
-            $newFilePath = '';
-            $oldFilePath = $row->getRawOriginal('data');
-            if ($oldFilePath && Storage::disk('public')->exists($oldFilePath)) {
-                if ($row->school_id) {
-                    $newFilePath = $row->school_id.'/'. $row->getRawOriginal('data');
-                }
-                Storage::disk('public')->move($oldFilePath, $newFilePath);
-                $row->data = $newFilePath;
-                $row->save();
-            }
+        // $rows = ExtraStudentData::whereHas('form_field', function($q) {
+        //     $q->where('type','file');
+        // })->get();
+        // foreach ($rows as $key => $row) {
+        //     $newFilePath = '';
+        //     $oldFilePath = $row->getRawOriginal('data');
+        //     if ($oldFilePath && Storage::disk('public')->exists($oldFilePath)) {
+        //         if ($row->school_id) {
+        //             $newFilePath = $row->school_id.'/'. $row->getRawOriginal('data');
+        //         }
+        //         Storage::disk('public')->move($oldFilePath, $newFilePath);
+        //         $row->data = $newFilePath;
+        //         $row->save();
+        //     }
             
-        }
+        // }
         // End extra student data
 
         // School settings
@@ -774,13 +774,6 @@ return new class extends Migration
         } catch (\Throwable $th) {
             
         }
-
-        $systemSettings[] = [
-            'name' => 'system_version',
-            'data' => '1.4.0',
-            'type' => 'text'
-        ];
-        SystemSetting::upsert($systemSettings, ["name"], ["data","type"]);
 
         Cache::flush();
     }

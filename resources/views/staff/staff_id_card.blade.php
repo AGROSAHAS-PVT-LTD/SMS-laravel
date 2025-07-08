@@ -252,6 +252,25 @@
                     <td>{{ $sessionYear->name }}</td>
                 </tr>
                 @endif
+                
+                @foreach ($users[0]->extra_user_details as $data)
+                    @if (in_array($data->form_field->type, ['text','number','radio','textarea']))
+                        <tr>
+                            <th class="staff-data">{{ $data->form_field->name }} :</th>
+                            <td>{{ $data->data }}</td>
+                        </tr>
+                    @elseif($data->form_field->type == 'dropdown')
+                        <tr>
+                            <th class="staff-data">{{ $data->form_field->name }} :</th>
+                            <td>{!! $data->form_field->default_values[$data->data] !!}</td>
+                        </tr>
+                    @elseif($data->form_field->type == 'checkbox')
+                        <tr>
+                            <th class="staff-data">{{ $data->form_field->name }} :</th>
+                            <td>{!! implode(",",json_decode($data->data ?? '[]')) !!}</td>
+                        </tr>
+                    @endif
+                @endforeach
 
                 <tr>
                     <td></td>
@@ -346,6 +365,25 @@
                     <td>{{ $sessionYear->name }}</td>
                 </tr>
                 @endif
+
+                @foreach ($users[0]->extra_user_details as $data)
+                    @if (in_array($data->form_field->type, ['text','number','radio','textarea']))
+                        <tr>
+                            <th class="vertical-staff-data">{{ $data->form_field->name }} :</th>
+                            <td>{{ $data->data }}</td>
+                        </tr>
+                    @elseif($data->form_field->type == 'dropdown')
+                        <tr>
+                            <th class="vertical-staff-data">{{ $data->form_field->name }} :</th>
+                            <td>{!! $data->form_field->default_values[$data->data] !!}</td>
+                        </tr>
+                    @elseif($data->form_field->type == 'checkbox')
+                        <tr>
+                            <th class="vertical-staff-data">{{ $data->form_field->name }} :</th>
+                            <td>{!! implode(",",json_decode($data->data ?? '[]')) !!}</td>
+                        </tr>
+                    @endif
+                @endforeach
 
                 <tr>
                     <td></td>

@@ -4,10 +4,10 @@
             <div class="row">
                 <div class="col-12">
                     <div class="flex_column_center">
-                        <span class="commonTag"> {{ $schoolSettings['expert_teachers_section'] ?? 'Our Teachers' }}
+                        <span class="commonTag"> {{ $schoolSettings['expert_teachers_title'] ?? 'Our Teachers' }}
                         </span>
                         <span class="commonTitle">
-                            {{ $schoolSettings['expert_teachers_title'] ?? 'Our Expert Teachers' }}
+                            {{ $schoolSettings['expert_teachers_heading'] ?? 'Our Expert Teachers' }}
                         </span>
 
                         <span class="commonDesc">
@@ -25,7 +25,11 @@
                                     <div class="swiperDataWrapper">
                                         <div class="card">
                                             <div>
-                                                <img src="{{ $teacher->image }}" alt="">
+                                                @if ($teacher->image)
+                                                    <img src="{{ $teacher->image ? $teacher->image : asset('assets/no_image_available.jpg') }}" alt="no image available" onerror="this.onerror=null; this.src='{{ asset('assets/no_image_available.jpg') }}';" class="me-2" alt="image">
+                                                @else
+                                                    <img src="{{ asset('assets/no_image_available.jpg') }}" alt="no image available" onerror="this.onerror=null; this.src='{{ asset('assets/no_image_available.jpg') }}';" class="me-2" alt="image">
+                                                @endif
                                             </div>
                                             <div class="teacherDetails">
                                                 <span class="name">{{ $teacher->full_name }}</span>

@@ -32,6 +32,12 @@
                                             <button class="file-upload-browse btn btn-theme" type="button">{{ __('upload') }}</button>
                                         </span>
                                     </div>
+                                    <div class="form-check w-fit-content">
+                                        <label class="form-check-label user-select-none">
+                                            <input type="checkbox" class="form-check-input" name="is_send_notification" id="send_notification">
+                                            {{ __('send_notification') }}
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                             <input class="btn btn-theme" id="create-btn" type="submit" value={{ __('submit') }}>

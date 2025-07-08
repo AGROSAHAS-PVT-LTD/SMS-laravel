@@ -209,15 +209,23 @@
 
 @section('script')
     <script>
-        $('.package_type').change(function(e) {
-            e.preventDefault();
-            if ($(this).val() == 1) {
+        $(document).ready(function () {
+            $('form.create-form').on('reset', function () {
+                $('#postpaid').prop('checked', true);
                 $('.postpaid').slideDown(500);
                 $('.prepaid').slideUp(500);
-            } else {
-                $('.prepaid').slideDown(500);
-                $('.postpaid').slideUp(500);
-            }
+            });
+
+            $('.package_type').change(function(e) {
+                e.preventDefault();
+                if ($(this).val() == 1) {
+                    $('.postpaid').slideDown(500);
+                    $('.prepaid').slideUp(500);
+                } else {
+                    $('.prepaid').slideDown(500);
+                    $('.postpaid').slideUp(500);
+                }
+            });
         });
     </script>
 @endsection

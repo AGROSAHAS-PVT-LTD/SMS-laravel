@@ -53,7 +53,7 @@
 
                                                 <div class="col-lg-6 inputWrapper">
                                                     <label for="number">Mobile Number</label>
-                                                    <input type="number" placeholder="Mobile Number" name="mobile" id="mobile">
+                                                    <input type="text" placeholder="Mobile Number" oninput="this.value=this.value.replace(/[^0-9]/g,'');" name="mobile" id="mobile" maxlength="16">
                                                 </div>
 
                                                 <!-- ====================================================================================== -->
@@ -113,6 +113,101 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                @if(count($extraFields))
+                                <div class="row other-details mx-2 pe-4">
+
+                                    {{-- Loop the FormData --}}
+                                    @foreach ($extraFields as $key => $data)
+                                            {{-- Edit Extra Details ID --}}
+                                            {{ Form::hidden('extra_fields['.$key.'][id]', '', ['id' => $data->type.'_'.$key.'_id']) }}
+
+                                            {{-- Form Field ID --}}
+                                            {{ Form::hidden('extra_fields['.$key.'][form_field_id]', $data->id, ['id' => $data->type.'_'.$key.'_id']) }}
+
+                                            <div class='form-group col-md-12 col-lg-6 col-xl-4 col-sm-12'>
+
+                                                {{-- Add lable to all the elements excluding checkbox --}}
+                                                @if($data->type != 'radio' && $data->type != 'checkbox')
+                                                    <label>{{$data->name}} @if($data->is_required)
+                                                            <span class="text-danger">*</span>
+                                                        @endif</label>
+                                                @endif
+
+                                                {{-- Text Field --}}
+                                                @if($data->type == 'text')
+                                                    {{ Form::text('extra_fields['.$key.'][data]', '', ['class' => 'form-control text-fields', 'id' => $data->type.'_'.$key, 'placeholder' => $data->name, ($data->is_required == 1 ? 'required' : '')]) }}
+                                                    {{-- Number Field --}}
+                                                @elseif($data->type == 'number')
+                                                    {{ Form::number('extra_fields['.$key.'][data]', '', ['min' => 0, 'class' => 'form-control number-fields', 'id' => $data->type.'_'.$key, 'placeholder' => $data->name, ($data->is_required == 1 ? 'required' : '')]) }}
+
+                                                    {{-- Dropdown Field --}}
+                                                @elseif($data->type == 'dropdown')
+                                                    {{ Form::select('extra_fields['.$key.'][data]',$data->default_values,null,
+                                                        ['id' => $data->type.'_'.$key,'class' => 'form-control select-fields',
+                                                            ($data->is_required == 1 ? 'required' : ''),
+                                                            'placeholder' => 'Select '.$data->name
+                                                        ]
+                                                    )}}
+
+                                                        {{-- Radio Field --}}
+                                                    @elseif($data->type == 'radio')
+                                                        <label class="d-block">{{$data->name}} @if($data->is_required)
+                                                                <span class="text-danger">*</span>
+                                                            @endif</label>
+                                                        <div class="row col-md-12 col-lg-12 col-xl-6 col-sm-12">
+                                                            @if(count($data->default_values))
+                                                                @foreach ($data->default_values as $keyRadio => $value)
+                                                                    <div class="form-check mr-2">
+                                                                        <label class="form-check-label">
+                                                                            {{ Form::radio('extra_fields['.$key.'][data]', $value, null, ['id' => $data->type.'_'.$keyRadio, 'class' => 'radio-fields',($data->is_required == 1 ? 'required' : '')]) }}
+                                                                            {{$value}}
+                                                                        </label>
+                                                                    </div>
+                                                                @endforeach
+                                                            @endif
+                                                        </div>
+
+                                                        {{-- Checkbox Field --}}
+                                                    @elseif($data->type == 'checkbox')
+                                                        <label class="d-block">{{$data->name}} @if($data->is_required)
+                                                                <span class="text-danger">*</span>
+                                                            @endif</label>
+                                                        @if(count($data->default_values))
+                                                            <div class="row col-lg-12 col-xl-6 col-md-12 col-sm-12 ms-1" style="gap:1rem;">
+                                                                @foreach ($data->default_values as $chkKey => $value)
+                                                                    <div class="mr-2 form-check">
+                                                                        <label class="form-check-label">
+                                                                            {{ Form::checkbox('extra_fields['.$key.'][data][]', $value, null, ['id' => $data->type.'_'.$chkKey, 'class' => 'form-check-input chkclass checkbox-fields',($data->is_required == 1 ? 'required' : '')]) }} {{ $value }}
+
+                                                                        </label>
+                                                                    </div>
+                                                                @endforeach
+                                                            </div>
+                                                        @endif
+
+                                                        {{-- Textarea Field --}}
+                                                    @elseif($data->type == 'textarea')
+                                                        {{ Form::textarea('extra_fields['.$key.'][data]', '', ['placeholder' => $data->name, 'id' => $data->type.'_'.$key, 'class' => 'form-control textarea-fields', ($data->is_required ? 'required' : '') , 'rows' => 3]) }}
+
+                                                        {{-- File Upload Field --}}
+                                                    @elseif($data->type == 'file')
+                                                        <div class="input-group col-xs-12">
+                                                            {{ Form::file('extra_fields['.$key.'][data]', ['class' => 'file-upload-default', 'hidden', 'id' => $data->type.'_'.$key, ($data->is_required ? 'required' : '')]) }}
+                                                            {{ Form::text('', '', ['class' => 'form-control file-upload-info', 'disabled' => '', 'placeholder' => __('image')]) }}
+                                                            <span class="input-group-append">
+                                                                <button class="file-upload-browse btn btn-theme" style="background-color: #D8E0E6;" type="button">{{ __('upload') }}</button>
+                                                            </span>
+                                                        </div>
+                                                        <div id="file_div_{{$key}}" class="mt-2 d-none file-div">
+                                                            <a href="" id="file_link_{{$key}}" target="_blank">{{$data->name}}</a>
+                                                        </div>
+
+                                                    @endif
+                                                </div>
+                                    @endforeach
+                                </div>
+                            @endif
                                 <div class="col-12 mainDiv">
                                     <div class="formHeading">
                                         <span> Parents Information </span>
@@ -135,7 +230,7 @@
 
                                                 <div class="col-lg-6 inputWrapper">
                                                     <label for="number">Mobile Number <span>*</span></label>
-                                                    <input type="number" placeholder="Mobile Number" name="guardian_mobile" id="guardian_mobile" required>
+                                                    <input type="text" placeholder="Mobile Number" name="guardian_mobile" id="guardian_mobile" oninput="this.value=this.value.replace(/[^0-9]/g,'');" maxlength="16" required>
                                                 </div>
 
                                                 <div class="col-lg-6 inputWrapper">
@@ -163,7 +258,7 @@
                                         <div class="col-lg-4">
                                             <div class="fileInputWrapper">
                                                 <div>
-                                                    <img src="{{ asset('assets/school/images/Image Preview.png') }}" alt="imgPreview" class="lowerImgPreview default-image">
+                                                    <img src="{{ asset('assets/school/images/Image Preview.png') }}" alt="imgPreview" class="lowerImgPreview default-image" style="height: 331px">
                                                 </div>
                                                 <div class="file-upload lowerFileUpload">
                                                     <div class="file-select">
@@ -185,7 +280,7 @@
                                 </div>
 
                                 <div class="col-12 formBtnsWrapper">
-                                    <button class="commonBtn">Reset</button>
+                                    <button class="commonBtn" type="reset">Reset</button>
                                     {{-- <button class="commonBtn">Submit</button> --}}
                                     <input type="submit" class="commonBtn" value="Submit">
                                 </div>

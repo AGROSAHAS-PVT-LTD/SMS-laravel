@@ -26,7 +26,7 @@ class CheckChild {
         $url = $request->getRequestUri();
         // For api routes
         if (strpos($url, 'api') !== false) {
-            $schoolCode = $request->header('school_code');
+            $schoolCode = $request->header('school-code');
             if ($schoolCode) {
                 $school = School::on('mysql')->where('code',$schoolCode)->first();
 

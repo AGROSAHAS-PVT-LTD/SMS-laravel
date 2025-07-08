@@ -116,6 +116,7 @@
                                         <label>{{ __('Promote Class') }} <span class="text-danger">*</span></label>
                                         <select required name="new_class_section_id" id="new_student_class_section" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
                                             <option value="">{{ __('Select Class') }}</option>
+                                            <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
                                             @foreach ($classSections as $section)
                                                 <option value="{{ $section->id }}" data-class="{{ $section->class->id }}">
                                                     {{ $section->full_name }}
@@ -165,25 +166,35 @@
             // Refresh the bootstrap table
             $('#transfer-student-table-list').bootstrapTable('refresh');
 
-            // Get Class and section value from the option selected
-            let classId = $(this).find('option[value="' + $(this).val() + '"]').data("class");
-            let sectionId = $(this).find('option[value="' + $(this).val() + '"]').data("section");
+            // Get the selected value
+            let selectedValue = $(this).val();
 
-            // remove Disabled Attribute from the value having empty and hide all the options
-            $('#new_transfer_class_section').val("").removeAttr('disabled').show();
+            // Reset the new transfer class section dropdown
+            $("#new_transfer_class_section").val("").removeAttr('disabled');
             $("#new_transfer_class_section").find('option').hide();
 
-            // Check the options whose classId is equal to option's data class value and sectionId value should not be equal to option's data section
-            let matchingOptions = $("#new_transfer_class_section").find('option').filter(function () {
-                return $(this).data("class") == classId && $(this).data("section") != sectionId;
-            });
+            // Show the empty option
+            $("#new_transfer_class_section").find('option[value=""]').show();
 
-            // If Matching options Found then show options and get Selected First Option
-            if (matchingOptions.length) {
-                matchingOptions.show().first().prop('selected', true);
+            if (selectedValue && selectedValue !== '') {
+                // Get all options except the selected one and the empty/data-not-found options
+                let availableOptions = $("#new_transfer_class_section").find('option').filter(function () {
+                    let optionValue = $(this).val();
+                    return optionValue !== selectedValue && optionValue !== '' && optionValue !== 'data-not-found';
+                });
+
+                // If there are available options, show them
+                if (availableOptions.length > 0) {
+                    availableOptions.show();
+                } else {
+                    // If no options available, show data-not-found and disable
+                    $("#new_transfer_class_section").find('option[value="data-not-found"]').show();
+                    $("#new_transfer_class_section").val("data-not-found").attr('disabled', true);
+                }
             } else {
-                // or else show data not found option and make it disable
-                $("#new_transfer_class_section").val("data-not-found").attr('disabled', true).show();
+                // If no current class section selected, show data-not-found
+                $("#new_transfer_class_section").find('option[value="data-not-found"]').show();
+                $("#new_transfer_class_section").val("data-not-found").attr('disabled', true);
             }
 
             // Trigger Change event

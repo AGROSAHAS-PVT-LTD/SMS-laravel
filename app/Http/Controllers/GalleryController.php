@@ -9,11 +9,13 @@ use App\Repositories\SessionYear\SessionYearInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Storage;
 use Throwable;
+use Illuminate\Support\Facades\Auth;
 
 class GalleryController extends Controller
 {
@@ -21,12 +23,14 @@ class GalleryController extends Controller
     private CachingService $cache;
     private GalleryInterface $gallery;
     private FilesInterface $files;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(SessionYearInterface $sessionYear, CachingService $cache, GalleryInterface $gallery, FilesInterface $files) {
+    public function __construct(SessionYearInterface $sessionYear, CachingService $cache, GalleryInterface $gallery, FilesInterface $files, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->sessionYear = $sessionYear;
         $this->cache = $cache;
         $this->gallery = $gallery;
         $this->files = $files;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     /**
@@ -95,6 +99,8 @@ class GalleryController extends Controller
             ];
     
             $gallery = $this->gallery->create($data);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Gallery', $gallery->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
 
             // Initialize the Empty Array
             $galleryFileData = array();
@@ -359,6 +365,9 @@ class GalleryController extends Controller
 
             $gallery->file()->delete();
             $gallery->delete();
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Gallery', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
 
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');

@@ -91,7 +91,7 @@
 
             <div class="loginBtnsWrapper">
                 <button class="commonBtn redirect-login">{{ __('login') }}</button>
-                <button class="commonBtn" data-bs-toggle="modal" data-bs-target="#staticBackdrop">{{ __('start_trial') }}</button>
+                <button class="commonBtn" id="trialBtn" data-bs-toggle="modal" data-bs-target="#staticBackdrop">{{ __('start_trial') }}</button>
                 {{-- <a href="{{ url('school/registration') }}" class="commonBtn">{{ __('start_trial') }}</a> --}}
             </div>
         </div>
@@ -193,7 +193,12 @@
                                 </span>
                                 <span class="commonText">
                                     {{ $settings['hero_description'] }}</span>
-                                <button class="commonBtn" data-bs-toggle="modal" data-bs-target="#staticBackdrop">{{ __('register_your_school') }}</button>
+                                <div class="d-flex">
+                                    <button class="commonBtn" style="margin-right: 40px" data-bs-toggle="modal" data-bs-target="#staticBackdrop">{{ __('register_your_school') }}</button>                           
+                                    @if ($isDemoSchool == 1)
+                                        <a href="{{ $demoSchoolUrl ?? url('/') }}" target="_blank" class="commonBtn">{{ __('demo_school') }}</a>
+                                    @endif   
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-12 col-lg-6 heroImgWrapper">
@@ -203,13 +208,17 @@
                                     <div>
                                         <img src="{{ $settings['hero_title_2_image'] ?? asset('assets/landing_page_images/user.png') }}" alt="">
                                     </div>
-                                    <div>
-                                        <span>{{ $settings['hero_title_2'] }}</span>
-                                    </div>
+                                    @if(!empty($settings['hero_title_2']))
+                                        <div>
+                                            <span>{{ $settings['hero_title_2'] }}</span>
+                                        </div>
+                                    @endif
                                 </div>
-                                <div class="textWrapper">
-                                    <span>{{ $settings['hero_title_1'] }}</span>
-                                </div>    
+                                @if(!empty($settings['hero_title_1']))
+                                    <div class="textWrapper">
+                                        <span>{{ $settings['hero_title_1'] }}</span>
+                                    </div>
+                                @endif
                                 
                             </div>
                         </div>
@@ -264,7 +273,7 @@
     </section>
     <!-- features ends here  -->
 
-    @if ($settings['display_school_logos'] ?? '1')
+    {{-- @if ($settings['display_school_logos'] ?? '1')
         <section class="swiperSect container commonMT">
             <div class="row">
                 <div class="col-12">
@@ -286,9 +295,9 @@
                 </div>
             </div>
         </section>
-    @endif
+    @endif --}}
     <!-- swiperSect ends here  -->
-    @if ($settings['display_counters'] ?? '1')
+    {{-- @if ($settings['display_counters'] ?? '1')
         <section class="counterSect commonMT container">
             <div class="">
                 <div class="row counterBG">
@@ -313,8 +322,27 @@
                 </div>
             </div>
         </section>
-    @endif
+    @endif --}}
     
+    <!-- School logos section starts here -->
+    @if ($settings['display_school_logos'] ?? '1')
+        <section class="container">
+            <div class="row py-3">
+                <div class="owl-carousel owl-theme school-logo-owl-carousel">
+                    <input type="hidden" id="school-count" value="{{ count($allSchools) }}">
+                    @foreach ($allSchools as $key => $school)
+                    <div class="item">
+                        <div class="card p-3 d-flex justify-content-center align-items-center">
+                            <img src="{{ $school->logo }}" style="border-radius: 50%; width: 100px; height: 100px;" alt="" onerror="onErrorImage(event)">
+                            <h6 class="mt-3">{{  Str::limit($school->name, 25, ' ...') }}</h6>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @endif 
+  <!-- School logos section ends here -->
 
     @foreach ($featureSections as $key => $section)
         @if (($key + 1) % 2 != 0)
@@ -330,10 +358,10 @@
     
                     </div>
                 </div>
-                <div class="col-12 tabsContainer">
+                <div class="col-12 tabsContainer " style="word-break: break-word;">
                     <div class="row">
-                        <div class="col-lg-6 tabsMainWrapper">
-                            <div class="tabsWrapper">
+                        <div class="col-lg-6 tabsMainWrapper" style="word-break: break-all !important;">
+                            <div class="tabsWrapper" >
                                 <div class="tabs">
                                     @foreach ($section->feature_section_list as $section_feature)
                                         <div class="tab tab-{{ $section_feature->id }}-{{ $key }}">
@@ -451,15 +479,15 @@
 
                     </div>
                 </div>
-                <div class="col-12 swiperWrapper">
+                <div class="col-12 swiperWrapper h-full">
                     <div class="commonSlider">
                         <div class="slider-content owl-carousel">
 
                             @foreach ($packages as $package)
                                 @if ($package->highlight)
-                                <div class="swiperDataWrapper">
-                                    <div class="pricingBox premium">
-                                        <div class="startUpWrapper">
+                                <div class="swiperDataWrapper flex items-stretch h-full">
+                                    <div class="pricingBox premium flex flex-col justify-between h-full">
+                                        <div class="startUpWrapper flex flex-col h-full">
                                             @if ($package->is_trial == 1)
                                                 <span class="badge postpaid">{{ __('free') }}</span>
                                             @else

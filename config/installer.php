@@ -7,7 +7,7 @@ return [
 
     //    'background' => 'assets/logo.svg',
 
-    'support_url' => 'https://join.skype.com/invite/yesfNpiviWRx',
+    'support_url' => 'https://join.skype.com/invite/xWFoykc1gnN6',
 
     'server' => [
         'php'       => [

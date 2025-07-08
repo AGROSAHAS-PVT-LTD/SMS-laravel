@@ -31,7 +31,9 @@
 
 <script src="{{ asset('/assets/js/jquery.cookie.js') }}"></script>
 <script src="{{ asset('/assets/js/sweetalert2.all.min.js') }}"></script>
+<script src="{{ asset('/assets/js/momentjs.js') }}"></script>
 <script src="{{ asset('/assets/js/datepicker.min.js') }}"></script>
+<script src="{{ asset('/assets/js/daterangepicker.js') }}"></script>
 <script src="{{ asset('/assets/js/jquery.repeater.js') }}"></script>
 <script src="{{ asset('/assets/tinymce/tinymce.min.js') }}"></script>
 
@@ -50,7 +52,7 @@
 <script src="{{ asset('/assets/ckeditor-4/ckeditor.js') }}"></script>
 <script src="{{ asset('/assets/ckeditor-4/adapters/jquery.js') }}" async></script>
 
-<script src="{{ asset('/assets/js/momentjs.js') }}"></script>
+
 <script type='text/javascript'>
     @if ($errors->any())
     @foreach ($errors->all() as $error)
@@ -93,6 +95,23 @@
 
     let time_format = '{{ $schoolSettings['time_format'] ?? $systemSettings['time_format'] ?? "h:i A" }}'.replace('h', 'hh').replace('H', 'HH').replace('i', 'mm').replace('a', 'a').replace('A', 'A');
     
+     
+    // Scroll to active item in sidebar
+    $(document).ready(function() {
+        const sidebar = document.querySelector('.sidebar .nav');
+        let activeItem = sidebar.querySelector('.nav-item.active');
+
+        if (activeItem) {
+            const sidebarRect = sidebar.getBoundingClientRect();
+            const itemRect = activeItem.getBoundingClientRect();
+
+            // Calculate offset so the active item is centered
+            const offset = activeItem.offsetTop - sidebar.offsetHeight / 2 + activeItem.offsetHeight / 2;
+
+            sidebar.scrollTop = offset;
+        }
+    });
+
     setTimeout(() => {
         
         $(document).ready(function() {
@@ -125,37 +144,38 @@
 
 
 
-    document.addEventListener("DOMContentLoaded", function () {
-        var isMobile = window.matchMedia("only screen and (max-width: 768px)").matches;
-        var table = document.getElementsByClassName('reorder-table-row');
+    // document.addEventListener("DOMContentLoaded", function () {
+    //     var isMobile = window.matchMedia("only screen and (max-width: 768px)").matches;
+    //     var table = document.getElementsByClassName('reorder-table-row');
 
-        if (table) {
-            if (isMobile) {
-                table.removeAttribute('data-reorderable-rows');
-            } else {
-                table.setAttribute('data-reorderable-rows', 'true');
-            }
-        }
-        // Initialize the table
-        $('.reorder-table-row').bootstrapTable();
-    });
+    //     if (table) {
+    //         if (isMobile) {
+    //             table.removeAttribute('data-reorderable-rows');
+    //         } else {
+    //             table.setAttribute('data-reorderable-rows', 'true');
+    //         }
+    //     }
+    //     // Initialize the table
+    //     $('.reorder-table-row').bootstrapTable();
+    // });
 
 
 
     document.addEventListener("DOMContentLoaded", function() {
         // Add the event listener for the button to initiate the payment
-
         setTimeout(() => {
-            document.getElementById('razorpay-button').onclick = function(e) {
+            
+            $('#razorpay-button').click(function (e) {
+                e.preventDefault(); 
                 let baseUrl = window.location.origin;
                 var order_id = '';
                 var paymentTransactionId = '';
 
                 $.ajax({
                     type: "post",
-                    url: baseUrl + '/subscriptions/create/order-id',
+                    url: baseUrl + '/subscriptions/create/razorpay/order-id',
                     data: {
-                        amount : $('.bill_amount').val(),
+                        amount: $('.bill_amount').val() * 100, // Amount is in currency subunits. Default currency is INR. Hence, 100 refers to 1 INR
                         currency : "{{ $system_settings['currency_code'] ?? 'INR' }}",
 
                         type : $('.type').val(),
@@ -168,9 +188,11 @@
                         
                     },
                     success: function (response) {
+                        console.log(response.data);
                         if (response.data) {
                             order_id = response.data.order.id;
                             paymentTransactionId = response.data.paymentTransaction.id;
+                           
                             var options = {
                                 "key": "{{ $paymentConfiguration->api_key ?? '' }}", // Enter the Key ID generated from the Dashboard
                                 "amount": $('.bill_amount').val() * 100, // Amount is in currency subunits. Default currency is INR. Hence, 100 refers to 1 INR
@@ -196,11 +218,14 @@
                             Swal.fire({icon: 'error', text: response.message});
                         }
                     }
+                    
                 });
-                e.preventDefault();
-            }
-        }, 100); 
-        
+                
+                
+            });
+
+        }, 100);
+
     });
 
 </script>
@@ -254,5 +279,43 @@
             $('.menu-search').removeClass('d-none');
         }
     });
+
+    // Scroll to active item in sidebar
+    // document.addEventListener("DOMContentLoaded", function() {
+    //     try {
+    //         const sidebar = document.querySelector('.sidebar .nav'); // correct selector for the sidebar navigation
+    //         if (!sidebar) return; // Exit if sidebar not found
+            
+    //         // First check for active nav-item
+    //         let activeItem = sidebar.querySelector('.nav-item.active'); 
+            
+    //         // If no active nav-item is found, check for active links in sub-menus
+    //         if (!activeItem) {
+    //             const activeLink = sidebar.querySelector('.nav-link.active');
+    //             if (activeLink) {
+    //                 // If active link is in sub-menu, get its parent collapse and nav-item
+    //                 activeItem = activeLink.closest('.nav-item');
+                    
+    //                 // Also expand the parent menu if it's in a collapse
+    //                 const parentCollapse = activeLink.closest('.collapse');
+    //                 if (parentCollapse) {
+    //                     parentCollapse.classList.add('show');
+    //                 }
+    //             }
+    //         }
+            
+    //         if (!activeItem) return; // Exit if no active item found
+            
+    //         // Calculate offset so the active item is centered
+    //         const offset = activeItem.offsetTop - sidebar.offsetHeight / 2 + activeItem.offsetHeight / 2;
+    //         if (offset > 0) {
+    //             sidebar.scrollTop = offset;
+    //         }
+    //     } catch (err) {
+    //         console.error("Error in sidebar scroll:", err);
+    //     }
+    // });
+
+    
 
 </script>

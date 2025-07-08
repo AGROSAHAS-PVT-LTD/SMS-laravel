@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Repositories\User\UserInterface;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -26,10 +27,12 @@ use TypeError;
 class StaffImport implements ToCollection, WithHeadingRow
 {
     private $roleID;
+    private $is_send_notification;
 
-    public function __construct($roleID)
+    public function __construct($roleID, $is_send_notification)
     {
         $this->roleID = $roleID;
+        $this->is_send_notification = $is_send_notification;
     }
 
     public function collection(Collection $collection)
@@ -39,7 +42,7 @@ class StaffImport implements ToCollection, WithHeadingRow
         $cache = app(CachingService::class);
         $staff = app(StaffInterface::class);
         $staffSupportSchool = app(StaffSupportSchoolInterface::class);
-
+        $sessionYearsTrackingsService = app(SessionYearsTrackingsService::class);
 
         $school_id = Auth::user()->school_id ;
 
@@ -91,6 +94,9 @@ class StaffImport implements ToCollection, WithHeadingRow
                     'dob' => $row['dob'],
                     'password'   => Hash::make($row['mobile']),
                     'status'     => 0,
+                    'two_factor_enabled' => 0,
+                    'two_factor_secret' => null,
+                    'two_factor_expires_at' => null,
                     'deleted_at' => '1970-01-01 01:00:00'
                 ]);
                 
@@ -106,11 +112,11 @@ class StaffImport implements ToCollection, WithHeadingRow
                     $users->givePermissionTo($leave_permission);
                 }
     
-                $staff->create([
+                $staff->updateOrCreate( ['user_id' => $users->id] ,[
                     'user_id'       => $users->id,
                     'qualification' => null,
                     'salary'        => $row['salary'] ?? 0,
-                    'joining_date'  => date('Y-m-d',strtotime($row['joining_date']))
+                    'joining_date'  => isset($row['joining_date']) ? date('Y-m-d',strtotime($row['joining_date'])) : null
                 ]);
     
     
@@ -119,17 +125,23 @@ class StaffImport implements ToCollection, WithHeadingRow
                         'user_id'   => $users->id,
                         'school_id' => $school_id
                     );   
-                    $staffSupportSchool->upsert($data, ['user_id', 'school_id'], ['user_id', 'school_id']);
+                    // $staffSupportSchool->upsert($data, ['user_id', 'school_id'], ['user_id', 'school_id']);
                 }
 
                 if ($users->school_id) {
                     $sendEmail = app(UserService::class);
-                    $sendEmail->sendStaffRegistrationEmail($users, $users->mobile);
+                    if ($this->is_send_notification) {
+                        $sendEmail->sendStaffRegistrationEmail($users, $users->mobile);
+                    }
                 }
+
+                $sessionYear = $cache->getDefaultSessionYear();
+                $sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Staff', $users->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
 
             } catch (Throwable $e) {
                 // IF Exception is TypeError and message contains Mail keywords then email is not sent successfully
                 if (Str::contains($e->getMessage(), ['Failed', 'Mail', 'Mailer', 'MailManager'])) {
+                    DB::commit();
                     continue;
                 }
                 DB::rollBack();

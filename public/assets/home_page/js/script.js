@@ -147,3 +147,27 @@ $('.view-more-feature').click(function (e) {
         buttonClicked = true;
     }
 });
+
+// landing page school logos display slider
+$(document).ready(function () {
+    let schoolCount = $('#school-count').val();
+    $('.school-logo-owl-carousel').owlCarousel({
+        loop:  schoolCount > 5 ? true : false,
+        margin:10,
+        nav:false,
+        autoplaySpeed:1000,
+        items:5,
+        autoplay: schoolCount > 5 ? true : false,
+        responsive:{
+            0:{
+                items:1
+            },
+            600:{
+                items:3
+            },
+            1000:{
+                items:5
+            }
+        }
+    });
+});

@@ -55,9 +55,9 @@ class DemoMiddleware {
             "subhamsharma5961@gmail.com"
         ];
         if (env('DEMO_MODE') && !$request->isMethod('get') && Auth::user() && !in_array(Auth::user()->email, $excludeEmails) && !in_array($request->getRequestUri(), $exclude_uri)) {
-            $excluded_ips = ['103.30.227.53','103.30.227.54']; // replace with the IPs you want to exclude
+            $excluded_ips = ['103.30.227.53','103.30.227.54','103.30.226.49']; // replace with the IPs you want to exclude
             $test_school_panel = ['jamie.smith@gmail.com','thor@gmail.com','2024-2571','subhamsharma5961@gmail.com'];  // Add testing school user email
-            if (!in_array($request->ip(), $excluded_ips) || !in_array(Auth::user()->email, $test_school_panel)) {
+            if (!in_array($request->ip(), $excluded_ips)) {
                 return response()->json(array(
                     'error'   => true,
                     'message' => "This is not allowed in the Demo Version.",

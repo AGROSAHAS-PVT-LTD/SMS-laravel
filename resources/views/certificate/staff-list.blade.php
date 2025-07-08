@@ -23,7 +23,7 @@
                             @csrf
                             <div class="form-group col-sm-12 col-md-4">
                                     <label class="filter-menu">{{ __('certificate') }} <span class="text-danger">*</span></label>
-                                    {!! Form::select('certificate_template_id', $certificateTemplates, null, ['class' => 'form-control']) !!}
+                                    {!! Form::select('certificate_template_id', $certificateTemplates, null, ['class' => 'form-control','id' => 'certificate_template_id', 'placeholder' => 'Select '.__('certificate').' '.__('template'), 'required' => 'required']) !!}
                                 </div>
                             <div class="row" id="toolbar">
                             </div>

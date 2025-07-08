@@ -8,8 +8,10 @@ use App\Repositories\SessionYear\SessionYearInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Throwable;
 
 class ExpenseController extends Controller {
@@ -18,12 +20,14 @@ class ExpenseController extends Controller {
     private ExpenseCategoryInterface $expenseCategory;
     private SessionYearInterface $sessionYear;
     private CachingService $cache;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(ExpenseInterface $expense, ExpenseCategoryInterface $expenseCategory, SessionYearInterface $sessionYear, CachingService $cache) {
+    public function __construct(ExpenseInterface $expense, ExpenseCategoryInterface $expenseCategory, SessionYearInterface $sessionYear, CachingService $cache, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->expense = $expense;
         $this->expenseCategory = $expenseCategory;
         $this->sessionYear = $sessionYear;
         $this->cache = $cache;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index() {
@@ -52,7 +56,11 @@ class ExpenseController extends Controller {
         try {
             DB::beginTransaction();
             $data = ['category_id' => $request->category_id, 'title' => $request->title, 'ref_no' => $request->ref_no, 'amount' => $request->amount, 'date' => date('Y-m-d', strtotime($request->date)), 'description' => $request->description, 'session_year_id' => $request->session_year_id];
-            $this->expense->create($data);
+            $expense = $this->expense->create($data);
+
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Expense', $expense->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
@@ -167,6 +175,8 @@ class ExpenseController extends Controller {
         try {
             DB::beginTransaction();
             $this->expense->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Expense', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {

@@ -140,11 +140,13 @@
 
     {{-- Extra form fields --}}
     @foreach ($formFields as $field)
-        <div class="form-group col-sm-12 col-md-3">
-            <input id="{{ $field->id }}" class="feature-checkbox" @if ($field->display_on_id) checked @endif
-                type="checkbox" name="extra_form_fields[]" value="{{ $field->id }}" />
-            <label class="feature-list text-center" for="{{ $field->id }}">{{ $field->name }}</label>
-        </div>
+        @if ($field->user_type == 1) <!-- 1 => Student -->
+            <div class="form-group col-sm-12 col-md-3">
+                <input id="{{ $field->id }}" class="feature-checkbox" @if ($field->display_on_id) checked @endif
+                    type="checkbox" name="extra_form_fields[]" value="{{ $field->id }}" />
+                <label class="feature-list text-center" for="{{ $field->id }}">{{ $field->name }}</label>
+            </div>
+        @endif
     @endforeach
     {{-- End Fields --}}
 
@@ -157,6 +159,7 @@
         <label for="">{{ __('page_width') }} ({{ __('mm') }})<span class="text-danger">*</span></label>
         <input name="page_width" id="page_width" value="{{ $settings['page_width'] ?? '' }}" type="number"
             required placeholder="{{ __('page_width') }}" class="form-control" />
+        <small class="form-text text-muted">{{__('Standard ID card width is typically 100-105mm')}}</small>
     </div>
 
     <div class="form-group col-sm-12 col-md-4">
@@ -164,6 +167,7 @@
                 class="text-danger">*</span></label>
         <input name="page_height" id="page_height" value="{{ $settings['page_height'] ?? '' }}" type="number"
             required placeholder="{{ __('page_height') }}" class="form-control" />
+        <small class="form-text text-muted">{{__('Standard ID card height is typically 150-155mm')}}</small>
     </div>
     {{-- End Page Size --}}
 </div>

@@ -438,15 +438,126 @@ function showPermanentlyDeletePopupModal(url, options = {}) {
 //     return `${h}:${m}:00`;
 // }
 
-const getSubjectOptionsList = (SubjectId, $this) => {
+const getSubjectOptionsList = (SubjectId, $this, userId) => {
+    $(SubjectId).val("").removeAttr('disabled').show();
+    if ($this.val() && $this.val().length) {
+        $(SubjectId).find('option').hide();
+        $(SubjectId).find('option[value=""]').show(); // Always show the empty option
+        $(SubjectId).find('option[value="data-not-found"]').hide(); // Hide the not found option initially
+        
+        let hasValidOptions = false;
+        let shownSubjects = new Set(); // Track unique subjects that have been shown
+        
+        let values = Array.isArray($this.val()) ? $this.val() : [$this.val()];
+        $.each(values, function (index, value) {
+                let optionSelector = 'option[data-class-section="' + value + '"]';
+            // Only add user filter if userId is provided
+            if (userId && userId !== '') {
+                optionSelector += '[data-user="' + userId + '"]';
+            }
+            
+            console.log('Looking for options with selector:', optionSelector);
+            let matchingOptions = $(SubjectId).find(optionSelector);
+            console.log('Found', matchingOptions.length, 'matching options');
+            
+            if (matchingOptions.length) {
+                // Filter to show only unique subjects
+                matchingOptions.each(function() {
+                    let subjectValue = $(this).val();
+                    let subjectText = $(this).text().trim();
+                    
+                    // Create unique identifier (you can use value or text based on your needs)
+                    let uniqueIdentifier = subjectValue + '_' + subjectText;
+                    
+                    // Only show if this subject hasn't been shown yet
+                    if (!shownSubjects.has(uniqueIdentifier) && subjectValue !== '' && subjectValue !== 'data-not-found') {
+                        $(this).show();
+                        shownSubjects.add(uniqueIdentifier);
+                        hasValidOptions = true;
+                        console.log('Showing unique subject:', subjectText);
+                    } else if (shownSubjects.has(uniqueIdentifier)) {
+                        console.log('Hiding duplicate subject:', subjectText);
+                    }
+                });
+            }
+        });
+        
+        console.log('Has valid options:', hasValidOptions);
+        console.log('Unique subjects shown:', Array.from(shownSubjects));
+        
+        if (!hasValidOptions) {
+            $(SubjectId).find('option[value="data-not-found"]').show();
+            $(SubjectId).val("data-not-found").attr('disabled', true);
+            console.log('No valid options found, showing "data-not-found"');
+        } else {
+            $(SubjectId).removeAttr('disabled');
+            console.log('Valid options found, enabling dropdown');
+        }
+    } else {
+        $(SubjectId).find('option[value="data-not-found"]').show();
+        $(SubjectId).val("data-not-found").attr('disabled', true);
+        console.log('No class sections selected, showing "data-not-found"');
+    }
+};
+
+const getElectiveSubjectOptionsList = (SubjectId, $this) => {
     $(SubjectId).val("").removeAttr('disabled').show();
     $(SubjectId).find('option').hide();
-    if ($(SubjectId).find('option[data-class-section="' + $this.val() + '"]').length) {
-        $(SubjectId).find('option[data-class-section="' + $this.val() + '"]').show().trigger('change');
+    
+    if ($this.val()) {
+        // Get the data-class-id from the selected option
+        var selectedOption = $this.find(':selected');
+        var dataClassId = selectedOption.data('class-id');
+        
+        // Show the empty option first
+        $(SubjectId).find('option[value=""]').show();
+        
+        // Check if there are matching options
+        if ($(SubjectId).find('option[data-class-id="' + dataClassId + '"]').length) {
+            $(SubjectId).find('option[data-class-id="' + dataClassId + '"]').show();
+            $(SubjectId).removeAttr('disabled');
+        } else {
+            // Show "no data found" option and disable dropdown
+            $(SubjectId).find('option[value="data-not-found"]').show();
+            $(SubjectId).val("data-not-found").attr('disabled', true);
+        }
     } else {
-        $(SubjectId).val("data-not-found").attr('disabled', true).show().trigger('change');
+        // No class selected - show "no data found" option
+        $(SubjectId).find('option[value="data-not-found"]').show();
+        $(SubjectId).val("data-not-found").attr('disabled', true);
     }
 }
+
+const getFeesClassOptionsList = (FeesId, classId) => {
+    $(FeesId).val("").removeAttr('disabled').show();
+    $(FeesId).find('option').hide();
+    if ($(FeesId).find('option[data-class-section-id="' + classId + '"]').length) {
+        $(FeesId).find('option[data-class-section-id="' + classId + '"]').show().trigger('change');
+    } else {
+        $(FeesId).val("").attr('disabled', false).show().trigger('change');
+    }
+}
+
+// const getOnlineOfflinePaymentOptionsList = (PaymentId, value) => {
+//     $(PaymentId).val("").removeAttr('disabled').show();
+//     $(PaymentId).find('option').hide();
+
+//     if (value == 1) {
+//         // Online
+//         value = 'stripe_razorpay';
+//     } else if (value == 2) {
+//         // Offline
+//         value = 'cash_cheque';
+//     } else {
+//         value = '';
+//     }
+
+//     if ($(PaymentId).find('option[value="' + value + '"]').length) {
+//         $(PaymentId).find('option[value="' + value + '"]').show().trigger('change');
+//     } else {
+//         $(PaymentId).val("").attr('disabled', false).show().trigger('change');
+//     }
+// }
 
 const getClassSubjectOptionsList = (SubjectId, classId) => {
     $(SubjectId).val("").removeAttr('disabled').show();
@@ -1059,4 +1170,4 @@ function generateRandomColors(count) {
       }
     }
     return colors;
-  }
+  } 

@@ -46,4 +46,9 @@ class CertificateTemplate extends Model
     {
         return explode(",",$value);
     }
+
+    public function session_years_trackings()
+    {
+        return $this->hasMany(SessionYearsTracking::class, 'modal_id', 'id')->where('modal_type', 'App\Models\CertificateTemplate');
+    }
 }

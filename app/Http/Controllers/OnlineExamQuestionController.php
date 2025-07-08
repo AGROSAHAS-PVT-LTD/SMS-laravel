@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OnlineExamQuestionCommon;
 use App\Repositories\ClassSection\ClassSectionInterface;
 use App\Repositories\ClassSubject\ClassSubjectInterface;
 use App\Repositories\OnlineExamQuestion\OnlineExamQuestionInterface;
@@ -10,6 +11,7 @@ use App\Repositories\SubjectTeacher\SubjectTeacherInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -23,14 +25,18 @@ class OnlineExamQuestionController extends Controller {
     private OnlineExamQuestionOptionInterface $onlineExamQuestionOption;
     private CachingService $cache;
     private ClassSubjectInterface $classSubjects;
+    private OnlineExamQuestionCommon $onlineExamQuestionCommon;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(SubjectTeacherInterface $subjectTeacher, ClassSectionInterface $classSection, OnlineExamQuestionInterface $onlineExamQuestion, OnlineExamQuestionOptionInterface $onlineExamQuestionOption, CachingService $cache, ClassSubjectInterface $classSubjects) {
+    public function __construct(SubjectTeacherInterface $subjectTeacher, ClassSectionInterface $classSection, OnlineExamQuestionInterface $onlineExamQuestion, OnlineExamQuestionOptionInterface $onlineExamQuestionOption, CachingService $cache, ClassSubjectInterface $classSubjects, OnlineExamQuestionCommon $onlineExamQuestionCommon, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->subjectTeacher = $subjectTeacher;
         $this->classSection = $classSection;
         $this->onlineExamQuestion = $onlineExamQuestion;
         $this->onlineExamQuestionOption = $onlineExamQuestionOption;
         $this->cache = $cache;
         $this->classSubjects = $classSubjects;
+        $this->onlineExamQuestionCommon = $onlineExamQuestionCommon;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index() {
@@ -41,7 +47,7 @@ class OnlineExamQuestionController extends Controller {
         $subjectTeachers = array();
         $classSubjects = array();
         if (Auth::user()->hasRole('School Admin')) {
-            $classSubjects = $this->classSubjects->builder()->with('subject')->get();
+            $classSubjects = $this->classSubjects->builder()->with('subject')->groupBy('subject_id')->get();
         } else {
             $subjectTeachers = $this->subjectTeacher->builder()->with('subject')->get();    
         }
@@ -51,36 +57,88 @@ class OnlineExamQuestionController extends Controller {
     }
 
     public function store(Request $request) {
-        
         ResponseService::noFeatureThenRedirect('Exam Management');
         ResponseService::noPermissionThenRedirect('online-exam-questions-create');
         try {
             DB::beginTransaction();
+            $section_ids = is_array($request->class_section_id) ? $request->class_section_id : [$request->class_section_id];
+            
+            if (empty($section_ids)) {
+                throw new \Exception('Class section ID is required');
+            }
 
-            $onlineExamQuestionData = array(
-                'class_section_id' => $request->class_section_id,
-                'class_subject_id' => $request->class_subject_id,
-                'question'         => htmlspecialchars($request->question, ENT_QUOTES | ENT_HTML5),
-                'image_url'        => $request->image,
-                'note'             => $request->note,
-                'last_edited_by'   => Auth::user()->id
-            );
+            $onlineExamQuestionData = [];
+
+            // Get the first section to set initial data
+            $firstSection = $this->classSection->builder()
+                ->where('id', $section_ids[0])
+                ->with('class')
+                ->firstOrFail();
+
+            $classSubjects = $this->classSubjects->builder()
+                ->where('class_id', $firstSection->class->id)
+                ->where('subject_id', $request->subject_id)
+                ->firstOrFail();
+
+            $onlineExamQuestionData = array_merge($request->all(), [
+                'class_section_id' => $section_ids[0],
+                'class_subject_id' => $classSubjects->id,
+                'last_edited_by' => Auth::user()->id
+            ]);
+
             $onlineExamQuestion = $this->onlineExamQuestion->create($onlineExamQuestionData);
+            
+            // Create common records for all sections
+            foreach ($section_ids as $section_id) {
+                $classSection = $this->classSection->builder()
+                    ->where('id', $section_id)
+                    ->with('class')
+                    ->firstOrFail();
 
+                $sectionClassSubjects = $this->classSubjects->builder()
+                    ->where('class_id', $classSection->class->id)
+                    ->where('subject_id', $request->subject_id)
+                    ->firstOrFail();
+
+                $this->onlineExamQuestionCommon->create([
+                    'online_exam_question_id' => $onlineExamQuestion->id,
+                    'class_section_id' => $section_id,
+                    'class_subject_id' => $sectionClassSubjects->id
+                ]);
+            }
+
+            // Create options
             $onlineExamOptionData = array();
             foreach ($request->option_data as $key => $optionValue) {
                 $onlineExamOptionData[$key] = array(
                     'question_id' => $onlineExamQuestion->id,
                     'option'      => htmlspecialchars($optionValue['option'], ENT_QUOTES | ENT_HTML5),
-                    'is_answer'   => 0, // Initialize is_answer to 0
+                    'is_answer'   => 0
                 );
-                foreach ($request->answer as $answerValue) {
-                    if ($optionValue['number'] == $answerValue) {
-                        $onlineExamOptionData[$key]['is_answer'] = 1; // Set is_answer to 1 if a match is found
+                
+                if (isset($request->answer)) {
+                    foreach ($request->answer as $answerValue) {
+                        if ($optionValue['number'] == $answerValue) {
+                            $onlineExamOptionData[$key]['is_answer'] = 1;
+                        }
                     }
                 }
             }
             $this->onlineExamQuestionOption->createBulk($onlineExamOptionData);
+
+            // Store session tracking
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $semester = $this->cache->getDefaultSemesterData();
+            
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking(
+                'App\Models\OnlineExamQuestion',
+                $onlineExamQuestion->id,
+                Auth::user()->id,
+                $sessionYear->id,
+                Auth::user()->school_id,
+                $semester ? $semester->id : null
+            );
+
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
@@ -101,7 +159,7 @@ class OnlineExamQuestionController extends Controller {
         $search = request('search');
         $subject_id = request('subject_id');
 
-        $sql = $this->onlineExamQuestion->builder()->with('options', 'class_section', 'class_subject.subject')
+        $sql = $this->onlineExamQuestion->builder()->with('options', 'class_section', 'class_subject.subject','online_exam_question_commons')
             ->where(function ($query) use ($search, $subject_id) {
                 $query->when($search, function ($query) use ($search) {
                     $query->where(function ($query) use ($search) {
@@ -114,9 +172,17 @@ class OnlineExamQuestionController extends Controller {
                             });
                     });
                 })->when(request('class_section_id'), function ($query) {
-                    $query->where('class_section_id', request('class_section_id'));
+                    // $query->where('class_section_id', request('class_section_id'));
+                    $class_id = request('class_section_id');
+                    $query->whereHas('online_exam_question_commons', function ($q) use ($class_id) {
+                        $q->where('class_section_id', $class_id);
+                    });
                 })->when(request('class_subject_id'), function ($query) {
-                    $query->where('class_subject_id', request('class_subject_id'));
+                    // $query->where('class_subject_id', request('class_subject_id'));
+                    $class_subject_id = request('class_subject_id');
+                    $query->whereHas('online_exam_question_commons', function ($q) use ($class_subject_id) {
+                        $q->where('class_subject_id', $class_subject_id);
+                    });
                 })->when($subject_id, function($q) use($subject_id) {
                     $q->where('class_subject_id', $subject_id);
                 });
@@ -132,6 +198,16 @@ class OnlineExamQuestionController extends Controller {
         $tempRow = array();
         $no = 1;
         foreach ($res as $row) {
+            $onlineExamQuestionClassCommons = $row->online_exam_question_commons->map(function ($common) {
+                return $common->class_section ? $common->class_section->full_name : null;
+            });
+            
+            $onlineExamQuestionClassCommons->filter()->map(function ($name) {
+                return "{$name},";
+            })->toArray();
+
+            // dd( $onlineExamQuestionClassCommons);
+
             // data for options which not answers
             $operate = BootstrapTableService::button('fa fa-edit', route('online-exam-question.edit', $row->id), ['btn-gradient-primary'], ['title' => 'Edit']); // Timetable Button
             $operate .= BootstrapTableService::trashButton(route('online-exam-question.destroy', $row->id));
@@ -139,7 +215,7 @@ class OnlineExamQuestionController extends Controller {
             $tempRow['online_exam_question_id'] = $row->id;
             $tempRow['no'] = $no++;
             $tempRow['class_section_id'] = $row->class_section_id;
-            $tempRow['class_name'] = $row->class_section_with_medium;
+            $tempRow['class_name'] = $onlineExamQuestionClassCommons;
             $tempRow['class_subject_id'] = $row->class_subject_id;
             $tempRow['subject_name'] = $row->subject_with_name;
             $tempRow['question'] = "<div class='equation-editor-inline' contenteditable=false>" . htmlspecialchars_decode($row->question) . "</div>";
@@ -227,6 +303,13 @@ class OnlineExamQuestionController extends Controller {
         ResponseService::noPermissionThenSendJson('online-exam-questions-delete');
         try {
             $this->onlineExamQuestion->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $semester = $this->cache->getDefaultSemesterData();
+            if ($semester) {
+                $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\OnlineExamQuestion', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, $semester->id);
+            } else {
+                $this->sessionYearsTrackingsService->deleteSessionYearsTracking('App\Models\OnlineExamQuestion', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
             ResponseService::logErrorResponse($e, "Online Exam Question Controller -> Destroy method", 'cannot_delete_because_data_is_associated_with_other_data');

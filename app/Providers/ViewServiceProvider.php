@@ -39,12 +39,47 @@ class ViewServiceProvider extends ServiceProvider {
         $fullDomain = $_SERVER['HTTP_HOST'] ?? '';
         $parts = explode('.', $fullDomain);
         $subdomain = $parts[0];
+        
+        $demoSchoolUrl = '';
         try {
-            $school = School::on('mysql')->where('domain',$subdomain)->first();
-            // dd($school);
+
+            $demoDomain = School::where('type', 'demo')->pluck('domain')->first();
+            if($demoDomain)
+            {
+                $baseUrl = url('/');
+                $baseUrlParts = parse_url($baseUrl);
+                $host = $baseUrlParts['host']; 
+                $host = str_replace("www.", "", $host);
+                $hostParts = explode('.', $host);
+    
+                // Check if it's a subdomain or main domain
+                if (count($hostParts) > 2) {
+                    $hostParts[0] = $demoDomain;
+                } else {
+                    array_unshift($hostParts, $demoDomain);
+                }
+    
+                $newHost = implode('.', $hostParts);
+                $demoSchoolUrl = $baseUrlParts['scheme'] . '://' . $newHost;
+    
+                if (!empty($baseUrlParts['port'])) {
+                    $demoSchoolUrl .= ':' . $baseUrlParts['port'];
+                }
+    
+                if (!empty($baseUrlParts['path'])) {
+                    $demoSchoolUrl .= $baseUrlParts['path'];
+                }
+            }
+        } catch (\Throwable $th) {  
+
+        }
+        
+        try {
+            $school = School::on('mysql')->with('user')->where('domain', $fullDomain)->orwhere('domain', $subdomain)->first();
         } catch (\Throwable $th) {
             
         }
+        
         
         
         if ($school) {
@@ -90,6 +125,11 @@ class ViewServiceProvider extends ServiceProvider {
             $view->with('systemSettings', $cache->getSystemSettings());
             $view->with('school', $school);
         });
+        View::composer('auth.2fa', static function (\Illuminate\View\View $view) use ($cache, $schoolSettings, $school) {
+            $view->with('schoolSettings', $schoolSettings);
+            $view->with('systemSettings', $cache->getSystemSettings());
+            $view->with('school', $school);
+        });
         /*** Email  ***/
 
         View::composer('auth.passwords.email', static function (\Illuminate\View\View $view) use ($cache) {
@@ -111,12 +151,24 @@ class ViewServiceProvider extends ServiceProvider {
             $view->with('systemSettings', $cache->getSystemSettings());
         });
 
+        View::composer('layouts.home_page.master', static function (\Illuminate\View\View $view) use ($cache) {
+            $view->with('systemSettings', $cache->getSystemSettings());
+            if (!empty(Auth::user()->school_id)) {
+                $view->with('schoolSettings', $cache->getSchoolSettings());
+            }
+        });
+
         View::composer('layouts.master', static function (\Illuminate\View\View $view) use ($cache) {
             $view->with('systemSettings', $cache->getSystemSettings());
         });
 
         View::composer('layouts.school.master', static function (\Illuminate\View\View $view) use ($cache) {
             $view->with('systemSettings', $cache->getSystemSettings());
+        });
+
+        View::composer('layouts.school.header', static function (\Illuminate\View\View $view) use ($cache) {
+            $view->with('systemSettings', $cache->getSystemSettings());
+            $view->with('languages', $cache->getLanguages());
         });
 
         View::composer('layouts.sidebar', static function (\Illuminate\View\View $view) use ($cache) {
@@ -145,6 +197,7 @@ class ViewServiceProvider extends ServiceProvider {
             $view->with('teachers', $teachers);
             $view->with('galleries', $galleries);
             $view->with('systemSettings', $cache->getSystemSettings());
+            $view->with('languages', $cache->getLanguages());
         });
     }
 }

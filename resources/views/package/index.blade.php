@@ -93,6 +93,22 @@
     <script>
         $(function () {
             $('#table_list').bootstrapTable()
+            $('.table-list-type').click(function (e) {
+                e.preventDefault();
+                var dataId = $(this).data('id');
+
+                // If "Trashed" is selected, show the reorder button
+                if (dataId == 1) {
+                    $('#reorder').hide(); // Hide the Update Rank button
+                } else {
+                    $('#reorder').show(); // Show the Update Rank button
+                }
+
+                // Highlight the active link
+                $('.table-list-type').removeClass('active');
+                $(this).addClass('active');
+
+            });
             $('#reorder').click(function () {
                 let idByOrder = JSON.stringify($('#table_list').bootstrapTable('getData').map((row) => row.id));
                 let data = new FormData();

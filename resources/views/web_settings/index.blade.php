@@ -111,13 +111,13 @@
                                     </div>
 
                                     <div class="form-group col-md-6 col-sm-12">
-                                        <label for="hero_title_1">{{ __('hero_title_1') }} <span class="text-danger">*</span></label>
-                                        <input name="hero_title_1" id="hero_title_1" value="{{ $settings['hero_title_1'] ?? '' }}" type="text" required placeholder="{{ __('hero_title_1') }}" class="form-control" maxlength="200" />
+                                        <label for="hero_title_1">{{ __('hero_title_1') }}</label>
+                                        <input name="hero_title_1" id="hero_title_1" value="{{ $settings['hero_title_1'] ?? '' }}" type="text" placeholder="{{ __('hero_title_1') }}" class="form-control" maxlength="200" />
                                     </div>
 
                                     <div class="form-group col-md-4 col-sm-12">
-                                        <label for="hero_title_2">{{ __('hero_title_2') }} <span class="text-danger">*</span></label>
-                                        <input name="hero_title_2" id="hero_title_2" value="{{ $settings['hero_title_2'] ?? '' }}" type="text" required placeholder="{{ __('hero_title_2') }}" class="form-control" maxlength="50"/>
+                                        <label for="hero_title_2">{{ __('hero_title_2') }}</label>
+                                        <input name="hero_title_2" id="hero_title_2" value="{{ $settings['hero_title_2'] ?? '' }}" type="text" placeholder="{{ __('hero_title_2') }}" class="form-control" maxlength="50"/>
                                     </div>
                                     <div class="form-group col-sm-12 col-md-4">
                                         <label for="image">{{ __('hero_image_2') }} </label>

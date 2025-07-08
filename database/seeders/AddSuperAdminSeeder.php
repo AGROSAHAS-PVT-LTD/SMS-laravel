@@ -27,7 +27,8 @@ class AddSuperAdminSeeder extends Seeder {
             'gender'     => 'male',
             'image'      => 'logo.svg',
             'mobile'     => "",
-            'email_verified_at' => Carbon::now()
+            'email_verified_at' => Carbon::now(),
+            'two_factor_enabled' => 0,
         ]);
         $user->assignRole([$super_admin_role->id]);
 
@@ -44,7 +45,7 @@ class AddSuperAdminSeeder extends Seeder {
             ["name" => "time_format", "data" => "h:i A", "type" => "time"],
             ["name" => "theme_color", "data" => "#22577A", "type" => "string"],
             ["name" => "session_year", "data" => 1, "type" => "string"],
-            ["name" => "system_version", "data" => "1.4.1", "type" => "string"],
+            ["name" => "system_version", "data" => "1.6.0", "type" => "string"],
             ["name" => "email_verified", "data" => 0, "type" => "boolean"],
             ["name" => "subscription_alert", "data" => 7, "type" => "integer"],
             ["name" => "currency_code", "data" => "USD", "type" => "string"],
@@ -166,9 +167,70 @@ class AddSuperAdminSeeder extends Seeder {
 
             [
                 'name' => 'email_template_school_registration',
-                'data' => '&lt;p&gt;Dear {school_admin_name},&lt;/p&gt; &lt;p&gt;Welcome to {system_name}!&lt;/p&gt; &lt;p&gt;We are excited to have you as part of our educational community. Below are your registration details to access the system:&lt;/p&gt; &lt;hr&gt; &lt;p&gt;&lt;strong&gt;School Name:&lt;/strong&gt; {school_name}&lt;/p&gt; &lt;p&gt;&lt;strong&gt;System URL:&lt;/strong&gt; {url}&lt;/p&gt; &lt;p&gt;&lt;strong&gt;Your Login Credentials:&lt;/strong&gt;&lt;/p&gt; &lt;ul&gt; &lt;li&gt;&lt;strong&gt;Email:&lt;/strong&gt; {email}&lt;/li&gt; &lt;li&gt;&lt;strong&gt;Password:&lt;/strong&gt; {password}&lt;/li&gt; &lt;/ul&gt; &lt;hr&gt; &lt;p&gt;&lt;strong&gt;Please follow these steps to complete your registration:&lt;/strong&gt;&lt;/p&gt; &lt;ol&gt; &lt;li&gt;Click on the system URL provided above.&lt;/li&gt; &lt;li&gt;Enter your email and password.&lt;/li&gt; &lt;li&gt;Follow the instructions to complete your profile setup.&lt;/li&gt; &lt;/ol&gt; &lt;p&gt;&lt;strong&gt;Important:&lt;/strong&gt;&lt;/p&gt; &lt;ul&gt; &lt;li&gt;For security reasons, please change your password after your first login.&lt;/li&gt; &lt;li&gt;If you encounter any issues during the registration process, please do not hesitate to contact our support team at {support_email} or call {contact}.&lt;/li&gt; &lt;/ul&gt; &lt;p&gt;Thank you for choosing {system_name}. We are committed to providing you with the best educational tools and resources.&lt;/p&gt; &lt;p&gt;Best regards,&lt;/p&gt; &lt;p&gt;{super_admin_name}&lt;br&gt;{system_name}&lt;br&gt;{support_email}&lt;br&gt;{url}&lt;/p&gt;',
+                'data' => '&lt;p&gt;Dear {school_admin_name},&lt;/p&gt; &lt;p&gt;Welcome to {system_name}!&lt;/p&gt; &lt;p&gt;We are excited to have you as part of our educational community. Below are your registration details to access the system:&lt;/p&gt; &lt;hr&gt; &lt;p&gt;&lt;strong&gt;School Name:&lt;/strong&gt; {school_name}&lt;/p&gt; &lt;p&gt;&lt;strong&gt;System URL:&lt;/strong&gt; {url}&lt;/p&gt; &lt;p&gt;&lt;strong&gt;Your Login Credentials:&lt;/strong&gt;&lt;/p&gt; &lt;ul&gt; &lt;li&gt;&lt;strong&gt;Email:&lt;/strong&gt; {email}&lt;/li&gt; &lt;li&gt;&lt;strong&gt;Password:&lt;/strong&gt; {password}&lt;/li&gt; &lt;li&gt;&lt;strong&gt;School Code:&lt;/strong&gt; {code}&lt;/li&gt; &lt;/ul&gt; &lt;hr&gt; &lt;p&gt;&lt;strong&gt;Please follow these steps to complete your registration:&lt;/strong&gt;&lt;/p&gt; &lt;ol&gt; &lt;li&gt;Click on the system URL provided above.&lt;/li&gt; &lt;li&gt;Enter your email and password.&lt;/li&gt; &lt;li&gt;Follow the instructions to complete your profile setup.&lt;/li&gt; &lt;/ol&gt; &lt;p&gt;&lt;strong&gt;Important:&lt;/strong&gt;&lt;/p&gt; &lt;ul&gt; &lt;li&gt;For security reasons, please change your password after your first login.&lt;/li&gt; &lt;li&gt;If you encounter any issues during the registration process, please do not hesitate to contact our support team at {support_email} or call {contact}.&lt;/li&gt; &lt;/ul&gt; &lt;p&gt;Thank you for choosing {system_name}. We are committed to providing you with the best educational tools and resources.&lt;/p&gt; &lt;p&gt;Best regards,&lt;/p&gt; &lt;p&gt;{super_admin_name}&lt;br&gt;{system_name}&lt;br&gt;{support_email}&lt;br&gt;{url}&lt;/p&gt; &lt;br&gt; &lt;p&gt;&lt;strong&gt;This email was auto-generated, so don\'t reply.&lt;/strong&gt;&lt;/p&gt;',
                 'type' => 'text'
             ],
+
+            [
+                'name' => 'web_maintenance',
+                'data' => '0',
+                'type' => 'string'
+            ],
+
+            [
+                'name' => 'file_upload_size_limit',
+                'data' => '2',
+                'type' => 'string'
+            ],
+
+            [
+                'name' => 'email_template_two_factor_authentication_code',
+                'data' => '&lt;p&gt;Dear {school_admin_name},&lt;/p&gt; &lt;p&gt;Welcome to {system_name}!&lt;/p&gt; &lt;p&gt;We are excited to have you as part of our educational community. To enhance the security of your account, we have enabled Two-Factor Authentication (2FA) for your login.&lt;/p&gt; &lt;p&gt;&lt;strong&gt;Your Verification Code:&lt;/strong&gt;&lt;/p&gt; &lt;p&gt;&lt;strong&gt;{verification_code}&lt;/strong&gt;&lt;/p&gt; &lt;p&gt;This verification code is required to complete your login process. Please enter the code within the next {expiration_time} minutes. If the code expires, you can request a new one by following the same process.&lt;/p&gt; &lt;hr&gt; &lt;p&gt;&lt;strong&gt;Important:&lt;/strong&gt;&lt;/p&gt; &lt;ul&gt; &lt;li&gt;If you did not request this verification code, please contact our support team immediately at {support_email} or call {support_contact} to secure your account.&lt;/li&gt; &lt;li&gt;For additional security, ensure that no one else has access to your email or device when retrieving your verification code.&lt;/li&gt; &lt;/ul&gt; &lt;p&gt;If you have any issues with the 2FA process or need assistance, our support team is ready to help at {support_email} or {support_contact}.&lt;/p&gt; &lt;p&gt;Thank you for taking extra steps to secure your account. We appreciate your commitment to keeping your information safe.&lt;/p&gt; &lt;p&gt;Best regards,&lt;/p&gt; &lt;p&gt;{super_admin_name}&lt;br&gt;{system_name}&lt;br&gt;{support_email}&lt;br&gt;{url}&lt;/p&gt; &lt;br&gt; &lt;p&gt;&lt;strong&gt;This email was auto-generated, so please do not reply.&lt;/strong&gt;&lt;/p&gt;',
+                'type' => 'text'
+            ],
+
+            [
+                'name' => 'wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+
+            [
+                'name' => 'system_settings_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+            [
+                'name' => 'notification_settings_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+            [
+                'name' => 'email_settings_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+            [
+                'name' => 'verify_email_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+            [
+                'name' => 'email_template_settings_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+            [
+                'name' => 'payment_settings_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ],
+            [
+                'name' => 'third_party_api_settings_wizard_checkMark',
+                'data' => 0,
+                'type' => 'integer'
+            ]
+            
         ];
 
         SystemSetting::upsert($systemSettings, ["name"], ["data","type"]);

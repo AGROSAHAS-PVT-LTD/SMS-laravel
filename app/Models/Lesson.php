@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-
+use App\Models\SessionYearsTracking;
 
 class Lesson extends Model {
     use HasFactory;
@@ -16,7 +16,6 @@ class Lesson extends Model {
         'description',
         'class_section_id',
         'class_subject_id',
-        'semester_id',
         'school_id'
     ];
 
@@ -45,25 +44,27 @@ class Lesson extends Model {
     }
 
     public function scopeOwner($query) {
-        if (Auth::user()->hasRole('Super Admin')) {
-            return $query;
-        }
-
-        if (Auth::user()->hasRole('School Admin')) {
-            return $query->where('school_id', Auth::user()->school_id);
-        }
-
-        if (Auth::user()->hasRole('Teacher')) {
-            $teacherId = Auth::user()->id;
-            return $query->whereHas('subject_teacher', function ($query) use ($teacherId) {
-                $query->where('teacher_id', $teacherId)
-                      ->whereColumn('class_section_id', 'lessons.class_section_id');
-            })->where('school_id',Auth::user()->school_id);
-            return $query->where('school_id', Auth::user()->school_id);
-        }
-
-        if (Auth::user()->hasRole('Student')) {
-            return $query->where('school_id', Auth::user()->school_id);
+        if (Auth::user()) {
+            if (Auth::user()->hasRole('Super Admin')) {
+                return $query;
+            }
+    
+            if (Auth::user()->hasRole('School Admin')) {
+                return $query->where('school_id', Auth::user()->school_id);
+            }
+    
+            if (Auth::user()->hasRole('Teacher')) {
+                $teacherId = Auth::user()->id;
+                return $query->whereHas('subject_teacher', function ($query) use ($teacherId) {
+                    $query->where('teacher_id', $teacherId)
+                          ->whereColumn('class_section_id', 'class_section_id');
+                })->where('school_id',Auth::user()->school_id);
+                return $query->where('school_id', Auth::user()->school_id);
+            }
+    
+            if (Auth::user()->hasRole('Student')) {
+                return $query->where('school_id', Auth::user()->school_id);
+            }
         }
 
         return $query;
@@ -83,6 +84,14 @@ class Lesson extends Model {
 
     public function topic() {
         return $this->hasMany(LessonTopic::class);
+    }
+
+    public function lesson_commons() {
+        return $this->hasMany(LessonCommon::class);
+    }
+
+    public function assignment_commons() {
+        return $this->hasMany(AssignmentCommon::class,'assignment_id');
     }
 
     public function getClassSectionWithMediumAttribute() {
@@ -113,4 +122,12 @@ class Lesson extends Model {
         return $this->belongsTo(SubjectTeacher::class, 'class_subject_id','class_subject_id');
     }
 
+    public function semester() {
+        return $this->belongsTo(Semester::class,'semester_id','id');
+    }
+
+    public function session_years_trackings()
+    {
+        return $this->hasMany(SessionYearsTracking::class, 'modal_id', 'id')->where('modal_type', 'App\Models\Lesson');
+    }
 }

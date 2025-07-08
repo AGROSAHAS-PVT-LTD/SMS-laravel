@@ -509,6 +509,7 @@ class StaffApiController extends Controller
                 DB::commit();
                 ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
             } else {
+                DB::rollBack();
                 ResponseService::logErrorResponse($e);
                 ResponseService::errorResponse();
             }
@@ -531,6 +532,7 @@ class StaffApiController extends Controller
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (\Throwable $th) {
+            DB::rollBack();
             ResponseService::logErrorResponse($th);
             ResponseService::errorResponse();
         }
@@ -629,6 +631,7 @@ class StaffApiController extends Controller
                 DB::commit();
                 ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
             } else {
+                DB::rollBack();
                 ResponseService::logErrorResponse($e);
                 ResponseService::errorResponse();
             }
@@ -719,6 +722,7 @@ class StaffApiController extends Controller
                 DB::commit();
                 ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
             } else {
+                DB::rollBack();
                 ResponseService::logErrorResponse($e);
                 ResponseService::errorResponse();
             }
@@ -976,6 +980,7 @@ class StaffApiController extends Controller
                 DB::commit();
                 ResponseService::warningResponse("Data Stored successfully. But App push notification not send.");
             } else {
+                DB::rollBack();
                 ResponseService::logErrorResponse($e);
                 ResponseService::errorResponse();
             }

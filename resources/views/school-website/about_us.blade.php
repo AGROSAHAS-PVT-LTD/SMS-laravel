@@ -25,9 +25,9 @@
                 <div class="row whoWeAreContentWrapper">
                     <div class="col-lg-6 contentDiv">
                         <div class="flex_column_center">
-                            <span class="commonTag"> {{ $schoolSettings['our_mission_section'] ?? 'Our Mission' }} </span>
+                            <span class="commonTag"> {{ $schoolSettings['our_mission_title'] ?? 'Our Mission' }} </span>
                             <span class="commonTitle">
-                                {{ $schoolSettings['our_mission_title'] ?? 'Discover Our Mission for eSchool' }}
+                                {{ $schoolSettings['our_mission_heading'] ?? 'Discover Our Mission for eSchool' }}
                             </span>
 
                             <span class="commonDesc">

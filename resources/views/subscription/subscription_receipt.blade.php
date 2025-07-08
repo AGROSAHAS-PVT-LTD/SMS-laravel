@@ -123,7 +123,7 @@
                     <td>
                         <div>
                             @if ($settings['horizontal_logo'])
-                                <img class="logo" src="{{ public_path('storage/' . $settings['horizontal_logo']) }}" alt="">
+                                <img class="logo" src="{{ public_path('storage/super-admin/system-settings/' . $settings['horizontal_logo']) }}" alt="">
                             @else
                                 <img class="logo" src="{{ public_path('assets/no_image_available.jpg') }}" alt="">    
                             @endif

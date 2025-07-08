@@ -22,9 +22,7 @@
             <div class="align-items-stretch d-none d-md-block d-sm-block cache-clear">
                 <span class="ml-3">{{ $schoolSettings['school_name'] ?? '' }}</span>
             </div>
-        @endif
-        
-
+        @endif  
         @if (isset($systemSettings['email_verified']) && !$systemSettings['email_verified'])
             @can('email-setting-create')
                 <div class="mx-auto order-0">

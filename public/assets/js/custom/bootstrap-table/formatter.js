@@ -106,7 +106,7 @@ function packageTypeFormatter(value, row) {
 function descriptionFormatter(value, row) {
     let html = '';
     if (value) {
-        html = '<div class="bootstrap-table-description" data-toggle="modal" data-target="#descriptionModal">' + value + '</div>';
+        html = '<div class="bootstrap-table-description" data-toggle="modal" data-target="#descriptionModal"><a href="javascript:void(0)">' + value + '</a></div>';
     }
     return html;
 }
@@ -409,7 +409,15 @@ function feesTypeFormatter(value, row) {
 
 function feesTransactionParentGateway(value, row) {
     if (row.payment_gateway == "Stripe") {
-        return "<span class='badge badge-primary'>Stripe</span>";
+        return "<span class='badge badge-primary'>"+window.trans['Stripe']+"</span>";
+    } else if (row.payment_gateway == 'Cash') {
+        return "<span class='badge badge-success'>"+window.trans['cash']+"</span>";
+    } else if (row.payment_gateway == 'Cheque') {
+        return "<span class='badge badge-info'>"+window.trans['cheque']+"</span>";
+    } else if (row.payment_gateway == 'Razorpay') {
+        return "<span class='badge badge-dark'>"+window.trans['Razorpay']+"</span>";
+    } else if (row.payment_gateway == 'Flutterwave') {
+        return "<span class='badge badge-dark'>"+window.trans['Flutterwave']+"</span>";
     } else {
         return "-";
     }
@@ -423,7 +431,9 @@ function subscriptionTransactionParentGateway(value, row) {
     } else if(row.payment_gateway == 'Cheque') {
         return "<span class='badge badge-info'>"+window.trans['cheque']+"</span>";
     } else if(row.payment_gateway == 'Razorpay') {
-        return "<span class='badge badge-dark'>"+window.trans['razorpay']+"</span>";
+        return "<span class='badge badge-dark'>"+window.trans['Razorpay']+"</span>";
+    } else if(row.payment_gateway == 'Flutterwave') {
+        return "<span class='badge badge-dark'>"+window.trans['Flutterwave']+"</span>";
     } else {
         return "-";
     }
@@ -470,7 +480,37 @@ function answersFormatter(value, row) {
 }
 
 function bgColorFormatter(value, row) {
-    return "<p style='background-color:" + row.bg_color + "' class='color-code-box'>" + row.bg_color + "</p>";
+    // Convert bg color to RGB to check brightness
+    let color = row.bg_color;
+    let r, g, b;
+    
+    // Handle hex color
+    if (color.startsWith('#')) {
+        r = parseInt(color.substr(1,2), 16);
+        g = parseInt(color.substr(3,2), 16);
+        b = parseInt(color.substr(5,2), 16);
+    }
+    // Handle rgb/rgba color
+    else if (color.startsWith('rgb')) {
+        let nums = color.match(/\d+/g);
+        r = parseInt(nums[0]);
+        g = parseInt(nums[1]); 
+        b = parseInt(nums[2]);
+    }
+
+    // Calculate brightness using relative luminance formula
+    let brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    // Use white text for dark backgrounds, black for light
+    let textColor = brightness < 128 ? '#ffffff' : '#000000';
+
+    // Add box shadow for white/very light backgrounds
+    let boxShadow = '';
+    if (brightness > 240) { // Very light color
+        boxShadow = 'box-shadow: 0 0 3px rgba(0,0,0,0.2);';
+    }
+
+    return "<p style='background-color:" + row.bg_color + "; color:" + textColor + ";" + boxShadow + "' class='color-code-box'>" + row.bg_color + "</p>";
 }
 
 function formFieldDefaultValuesFormatter(value, row) {
@@ -505,11 +545,11 @@ function formFieldOtherValueFormatter(value, row) {
 function addRadioInputAttendance(value, row) {
     let html = "<input type='hidden' value=" + row.id + " name='attendance_data[" + row.no + "][id]'><input type='hidden' name='attendance_data[" + row.no + "][student_id]' value=" + row.user_id + ">"
     if (row.type == 1) {
-        html += '<div class="d-flex"><div class="form-check mr-2"><label class="form-check-label"><input required type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="1" checked>Present<i class="input-helper"></i></label></div><div class="form-check mr-2"><label class="form-check-label"><input type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="0">Absent<i class="input-helper"></i></label></div></div>';
+        html += '<div class="d-flex"><div class="form-check mr-2"><label class="form-check-label text-success"><input required type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="1" checked>Present<i class="input-helper"></i></label></div><div class="form-check mr-2"><label class="form-check-label text-danger"><input type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="0">Absent<i class="input-helper"></i></label></div></div>';
     } else if (row.type == 0) {
-        html += '<div class="d-flex"><div class="form-check mr-2"><label class="form-check-label"><input required type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="1">Present<i class="input-helper"></i></label></div><div class="form-check mr-2"><label class="form-check-label"><input type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="0" checked>Absent<i class="input-helper"></i></label></div></div>';
+        html += '<div class="d-flex"><div class="form-check mr-2"><label class="form-check-label text-danger"><input required type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="1">Present<i class="input-helper"></i></label></div><div class="form-check mr-2"><label class="form-check-label text-success"><input type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="0" checked>Absent<i class="input-helper"></i></label></div></div>';
     } else {
-        html += '<div class="d-flex"><div class="form-check mr-2"><label class="form-check-label"><input data-id="'+row.user_id+'" required type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="1" checked>Present<i class="input-helper"></i></label></div><div class="form-check"><label class="form-check-label"><input type="radio" data-id="'+row.user_id+'" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="0">Absent<i class="input-helper"></i></label></div></div>';
+        html += '<div class="d-flex"><div class="form-check mr-2"><label class="form-check-label"><input data-id="'+row.user_id+'" required type="radio" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="1" checked>Present<i class="input-helper"></i></label></div><div class="form-check"><label class="form-check-label text-danger"><input type="radio" data-id="'+row.user_id+'" class="type form-check-input" name="attendance_data[' + row.no + '][type]" value="0">Absent<i class="input-helper"></i></label></div></div>';
     }
     return html;
 }
@@ -740,6 +780,15 @@ function activeStatusFormatter(value, row) {
     }
 }
 
+function verifyEmailStatusFormatter(value, row) {
+    
+    if (row.user.email_verified_at != null) {
+        return "<span class='badge badge-success'>" + window.trans["verified"] + "</span>";
+    } else {
+        return "<span class='badge badge-danger'>" + window.trans["unverified"] + "</span>";
+    }
+}
+
 function amountFormatter(value, row) {
     return formatMoney(parseFloat(value));
 }
@@ -823,4 +872,134 @@ function totalFeesFormatter(value, row)
     $('.total_optional_fees_pending').html(row.no.currency_symbol+' '+amountFormatter(total_optional_fees_pending, null));
 
     return row.no.no;
+}
+
+
+function schoolInquiryStatusFormatter(value, row) {
+    let html;
+    // 0 = Pending/In Review , 1 = Accepted , 2 = Rejected , 3 = Resubmitted
+    if (row.status === 0) {
+        html = "<span class='badge badge-warning'>"+window.trans['Pending']+"</span>";
+    } else if (row.status === 1) {
+        html = "<span class='badge badge-success'>"+window.trans['Accepted']+"</span>";
+    } else if (row.status === 2) {
+        html = "<span class='badge badge-danger'>"+window.trans['Rejected']+"</span>";
+    }
+    return html;
+}
+function ClassSectionFormatter(value, row) {
+
+    let list = value.split(",").map((item) => {
+        if(item.length!==0) {
+            return "<li>" + item.trim() + "</li>";
+        }
+    }).join(""); 
+
+    return "<ul>" + list + "</ul>";
+}
+
+function marksSubmissionStatus(value, row) {
+    console.log(row.classSectionWiseStatus); // Debugging line
+    let html = "<div>";
+
+    if (!Array.isArray(row.classSectionWiseStatus)) {
+        console.error("classSectionWiseStatus is not an array:", row.classSectionWiseStatus);
+        return "<span style='color: red;'>Invalid data format</span>";
+    }
+
+    row.classSectionWiseStatus.forEach(function (sectionData) {
+        html += "<div style='margin-bottom: 12px;'>";
+        html += "<div style='margin-bottom:20px;'><strong style='margin-bottom: 12px;'>" + sectionData.class_section_name + "</strong></div>";
+        html += "<ol style='padding-left: 20px;'>";
+
+        sectionData.subject_wise_status.forEach(function (subjectData) {
+            const badgeClass = subjectData.status === "Submitted"
+                ? "badge-success"
+                : "badge-danger";
+
+            html += `<li style='margin-bottom: 8px;'> 
+                         ${subjectData.subject} 
+                         <span class='badge ${badgeClass}' style='padding: 4px 8px; margin-left: 8px;'>
+                             ${subjectData.status}
+                         </span>
+                     </li>`;
+        });
+
+        html += "</ol>";
+        html += "</div>";
+    });
+
+    html += "</div>";
+    return html;
+}
+
+function classSectionSubmissionStatus(value, row)
+{
+    let html = "<ol>";
+
+    row.classSectionWiseStatus.forEach(function (data) {
+        if(data.status == "Submitted") {
+            html += "<li style='margin-bottom: 8px;'>" + 
+                        data.class_section_name + 
+                        " <span class='badge badge-success' style='padding: 4px 8px; margin-left: 8px;'>" + 
+                        data.status + 
+                    "</span></li>";
+        } else {
+            html += "<li style='margin-bottom: 8px;'>" + 
+                        data.class_section_name + 
+                        " <span class='badge badge-danger' style='padding: 4px 8px; margin-left: 8px;'>" + 
+                        data.status + 
+                    "</span></li>";
+        }
+    });
+
+    html += "</ol>";
+
+    return html;
+ 
+}
+
+// Format status column with color-coded badges
+function assignElectiveSubjectStatusFormatter(value, row) {
+    row.status = row.status.toLowerCase();
+    console.log(row.status);
+    let badgeClass = 'badge-';
+    switch(row.status) {
+        case 'complete':
+            badgeClass += 'success';
+            break; 
+        case 'incomplete':
+            badgeClass += 'warning';
+            break;
+        default:
+            badgeClass += 'secondary';
+    }
+    return '<span class="badge ' + badgeClass + '">' + row.status.charAt(0).toUpperCase() + row.status.slice(1) + '</span>';
+}
+
+// Format elective subjects with better visualization
+function assignElectiveSubjectsFormatter(value, row) {
+    if (row.elective_subjects === '-') {
+        return '<span class="text-muted">' + row.elective_subjects + '</span>';
+    }
+    const subjects = row.elective_subjects.split(',');
+    const colors = ['primary', 'success', 'warning', 'info', 'danger'];
+    return subjects.map((subject, index) => {
+        if(subject.trim() !== '') {
+            return '<span class="badge badge-' + colors[index % colors.length] + ' mr-1">' + 
+                subject.trim() + 
+                ' <i class="fa fa-times text-danger" style="cursor:pointer" onclick="removeSubject(this, \'' + subject.trim() + '\', \'' + row.user_id + '\', \'' + row.student_subjects[0].class_subject_id + '\')"></i>' +
+            '</span>';
+        }
+        return '';
+    }).join(' ');
+}
+
+// Format application status
+function applicationStatusFormatter(value, row) {
+    if(row.application_status == 1){
+        return '<span class="badge badge-success">'+window.trans['accepted']+'</span>';
+    }else{
+        return '<span class="badge badge-danger">'+window.trans['rejected']+'</span>';
+    }
 }

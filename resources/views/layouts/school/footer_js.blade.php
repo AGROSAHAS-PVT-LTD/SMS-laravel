@@ -36,10 +36,13 @@
 <script>
     // annaouncementSlider
     $(document).ready(function() {
+        // let announcementCount = document.querySelector('.announcementCount').value;
+        let announcementCount = $(".announcementCount").val();
         // Initialize each carousel separately
         $(".announcementSwiper").each(function() {
             var owl = $(this).owlCarousel({
-                loop: true,
+                // loop: true,
+                loop: announcementCount > 3 ? true : false,
                 margin: 10,
                 nav: false,
                 responsive: {
@@ -165,7 +168,7 @@
     $('.footer-logo').attr("src", footer_logo );
 
     // Favicon
-    $('.school-favicon').attr('href', "{{ $schoolSettings['favicon'] ?? asset('assets/favicon.svg') }}");
+    $('.school-favicon').attr('href', "{{ $schoolSettings['favicon'] ?? $systemSettings['favicon'] ?? asset('assets/favicon.svg') }}");
 
     $('.redirect-login').click(function(e) {
         e.preventDefault();

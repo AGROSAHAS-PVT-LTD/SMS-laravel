@@ -13,11 +13,13 @@ use App\Repositories\StaffSalary\StaffSalaryInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Auth;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use PDF;
 use Throwable;
 
@@ -32,8 +34,9 @@ class PayrollController extends Controller {
     private SessionYearInterface $sessionYearInterface;
     private StaffSalaryInterface $staffSalary;
     private StaffPayrollInterface $staffPayroll;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-    public function __construct(SessionYearInterface $sessionYear, StaffInterface $staff, ExpenseInterface $expense, LeaveMasterInterface $leaveMaster, CachingService $cache, SchoolSettingInterface $schoolSetting, LeaveInterface $leave, SessionYearInterface $sessionYearInterface, StaffSalaryInterface $staffSalary, StaffPayrollInterface $staffPayroll) {
+    public function __construct(SessionYearInterface $sessionYear, StaffInterface $staff, ExpenseInterface $expense, LeaveMasterInterface $leaveMaster, CachingService $cache, SchoolSettingInterface $schoolSetting, LeaveInterface $leave, SessionYearInterface $sessionYearInterface, StaffSalaryInterface $staffSalary, StaffPayrollInterface $staffPayroll, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->sessionYear = $sessionYear;
         $this->staff = $staff;
         $this->expense = $expense;
@@ -44,6 +47,7 @@ class PayrollController extends Controller {
         $this->sessionYearInterface = $sessionYearInterface;
         $this->staffSalary = $staffSalary;
         $this->staffPayroll = $staffPayroll;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index() {
@@ -67,7 +71,7 @@ class PayrollController extends Controller {
     }
 
     public function store(Request $request) {
-        //
+   
         ResponseService::noFeatureThenRedirect('Expense Management');
         ResponseService::noPermissionThenRedirect('payroll-create');
 
@@ -119,6 +123,8 @@ class PayrollController extends Controller {
 
                 $expense = $this->expense->updateOrCreate(['staff_id' => $data['staff_id'], 'month' => $data['month'], 'year' => $data['year']], ['amount' => $data['amount'], 'session_year_id' => $data['session_year_id'],'basic_salary' => $data['basic_salary'],'date' => $data['date'],'title' => $data['title'],'paid_leaves' => $data['paid_leaves'],'description' => $data['description']]);
 
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\Expense', $expense->id, Auth::user()->id, $sessionYearInterface->id, Auth::user()->school_id, null);
+
                 $staffSalary = $this->staffSalary->builder()->where('staff_id',$user_id)->get();
                 if (count($staffSalary)) {
                     foreach ($staffSalary as $key => $payroll) {
@@ -133,12 +139,25 @@ class PayrollController extends Controller {
             }
             
             $this->staffPayroll->upsert($staff_payroll_data, ['staff_id', 'payroll_setting_id'], ['amount', 'percentage']);
+            $user = $this->staff->builder()->whereIn('id', $user_ids)->pluck('user_id');
+          
+            $title = 'Payroll Update !!!' ;
+            $body = "Your Payroll has been Updated.";
+            $type = "assignment";
+
+            send_notification($user, $title, $body, $type);
+
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
-            DB::rollBack();
-            ResponseService::logErrorResponse($e, 'Payroll Controller -> Store method');
-            ResponseService::errorResponse();
+            if (Str::contains($e->getMessage(), ['does not exist', 'file_get_contents'])) {
+                DB::commit();
+                ResponseService::warningResponse("Data Stored successfully. But App push notification not sent.");
+            } else {
+                DB::rollBack();
+                ResponseService::logErrorResponse($e, 'Payroll Controller -> Store method');
+                ResponseService::errorResponse();
+            }
         }
     }
 

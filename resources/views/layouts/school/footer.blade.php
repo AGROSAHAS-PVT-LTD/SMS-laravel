@@ -9,7 +9,7 @@
                             <span class="iconWrapper"><i class="fa-solid fa-location-dot"></i></span>
                         </div>
                         <div class="textDiv">
-                            <span>School Address</span>
+                            <span>{{ __('school_address') }}</span>
                             <span>{{ $schoolSettings['school_address'] ?? '' }}</span>
                         </div>
                     </div>
@@ -19,7 +19,7 @@
                             <span class="iconWrapper"><i class="fa-solid fa-envelope"></i></span>
                         </div>
                         <div class="textDiv">
-                            <span>Mail Us</span>
+                            <span>{{ __('mail_us') }}</span>
                             <span><a class="footer-contact" href="mailto:{{ $schoolSettings['school_email'] ?? '' }}">{{ $schoolSettings['school_email'] ?? '' }}</a></span>
                         </div>
                     </div>
@@ -29,7 +29,7 @@
                             <span class="iconWrapper"><i class="fa-solid fa-phone-volume"></i></i></span>
                         </div>
                         <div class="textDiv">
-                            <span>Call Us</span>
+                            <span>{{ __('call_us') }}</span>
                             <span><a class="footer-contact" href="tel:+{{ $schoolSettings['school_phone'] ?? '' }}">{{ $schoolSettings['school_phone'] ?? '' }}</a></span>
                         </div>
                     </div>
@@ -87,52 +87,52 @@
 
             <div class="col-sm-6 col-md-6 col-lg-3">
                 <div class="linksWrapper usefulLinksDiv">
-                    <span class="title">Useful Links</span>
-                    <span><a href="{{ url('/') }}">Home</a></span>
-                    <span><a href="{{ url('school/about-us') }}">About Us</a></span>
-                    <span><a href="{{ url('school/photos') }}">Photos</a></span>
-                    <span><a href="{{ url('school/videos') }}">Videos</a></span>
-                    <span><a href="{{ url('school/contact-us') }}">Contact Us</a></span>
+                    <span class="title">{{ __('useful_links') }}</span>
+                    <span><a href="{{ url('/') }}">{{ __('home') }}</a></span>
+                    <span><a href="{{ url('school/about-us') }}">{{ __('about_us') }}</a></span>
+                    <span><a href="{{ url('school/photos') }}">{{ __('photos') }}</a></span>
+                    <span><a href="{{ url('school/videos') }}">{{ __('videos') }}</a></span>
+                    <span><a href="{{ url('school/contact-us') }}">{{ __('contact_us') }}</a></span>
                 </div>
             </div>
 
             <div class="col-sm-6 col-md-6 col-lg-2">
                 <div class="linksWrapper">
-                    <span class="title">Quick Links</span>
+                    <span class="title">{{ __('quick_links') }}</span>
                     <span>
-                        <a href="{{ url('login') }}"> Admin Login </a>
+                        <a href="{{ url('login') }}"> {{ __('admin_login') }}</a>
                     </span>
                     <span>
-                        <a href="{{ url('school/terms-conditions') }}"> Terms & Conditioins </a>
+                        <a href="{{ url('school/terms-conditions') }}">{{ __('terms_condition') }}</a>
                     </span>
                     <span>
-                        <a href="{{ url('school/privacy-policy') }}"> Privacy Policy </a>
+                        <a href="{{ url('school/privacy-policy') }}"> {{ __('privacy_policy') }}</a>
                     </span>
 
                     <span>
-                        <a href="{{ url('school/refund-cancellation-policy') }}"> Refund - Cancellation </a>
+                        <a href="{{ url('school/refund-cancellation-policy') }}"> {{ __('refund_cancellation') }}</a>
                     </span>
                 </div>
             </div>
 
             <div class="col-sm-6 col-md-6 col-lg-4">
                 <div class="linksWrapper">
-                    <span class="title">Download eSchool Apps</span>
+                    <span class="title">{{ __('download_eschool_apps') }}</span>
 
                     <div class="appContainer">
                         <a class="appWrapper" href="{{ $systemSettings['app_link'] ?? '' }}">
                             <img src="{{ asset('assets/school/images/PlayStore.png') }}" alt="">
                             <span class="appNameWrapper">
-                                <span>Student & Parent</span>
-                                <span>Android App</span>
+                                <span>{{ __('student_parent') }}</span>
+                                <span>{{ __('android_app') }}</span>
                             </span>
                         </a>
 
                         <a class="appWrapper" href="{{ $systemSettings['ios_app_link'] ?? '' }}">
                             <img src="{{ asset('assets/school/images/AppStore.png') }}" alt="">
                             <span class="appNameWrapper">
-                                <span>Student & Parent</span>
-                                <span>iOS App</span>
+                                <span>{{ __('student_parent') }}</span>
+                                <span>{{ __('ios_app') }}</span>
                             </span>
                         </a>
                     </div>
@@ -141,15 +141,15 @@
                         <a class="appWrapper" href="{{ $systemSettings['teacher_app_link'] ?? '' }}">
                             <img src="{{ asset('assets/school/images/PlayStore.png') }}" alt="">
                             <span class="appNameWrapper">
-                                <span>Staff & Teacher</span>
-                                <span>Android App</span>
+                                <span>{{ __('staff_teacher') }}</span>
+                                <span>{{ __('android_app') }}</span>
                             </span>
                         </a>
                         <a class="appWrapper" href="{{ $systemSettings['teacher_ios_app_link'] ?? '' }}">
                             <img src="{{ asset('assets/school/images/AppStore.png') }}" alt="">
                             <span class="appNameWrapper">
-                                <span>Staff & Teacher</span>
-                                <span>iOS App</span>
+                                <span>{{ __('staff_teacher') }}</span>
+                                <span>{{ __('ios_app') }}</span>
                             </span>
                         </a>
                     </div>
@@ -160,9 +160,7 @@
     </div>
     <div class="copyRightText">
         <span class="text-center">
-            {{ $schoolSettings['footer_text'] ?? '' }}
-            {!! $systemSettings['footer_text'] ?? '' !!}
-            
+            {!! ((isset($schoolSettings['footer_text']) && $schoolSettings['footer_text'] != '') ? $schoolSettings['footer_text'] : ((isset($systemSettings['footer_text']) && $systemSettings['footer_text'] != '') ? $systemSettings['footer_text'] : '')) !!}
         </span>
     </div>
 </footer>

@@ -20,7 +20,7 @@ class APISwitchDatabase
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $schoolCode = $request->header('school_code');
+        $schoolCode = $request->header('school-code');
         if ($schoolCode) {
             $school = School::on('mysql')->where('code',$schoolCode)->first();
 
@@ -37,6 +37,22 @@ class APISwitchDatabase
                     Auth::loginUsingId($user->tokenable_id);
                 } else {
                     return response()->json(['message' => 'Unauthenticated.']);
+                }
+
+                $exclude_uri = array(
+                    '/api/student/login',
+                    '/api/parent/login',
+                    '/api/teacher/login',
+                    '/contact',
+                    '/api/student/submit-online-exam-answers',
+                );
+
+                if (env('DEMO_MODE') && !$request->isMethod('get') && Auth::user() && !in_array($request->getRequestUri(), $exclude_uri)) {
+                    return response()->json(array(
+                        'error'   => true,
+                        'message' => "This is not allowed in the Demo Version.",
+                        'code'    => 112
+                    ));
                 }
 
             } else {

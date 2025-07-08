@@ -41,7 +41,10 @@ class User extends Authenticatable implements MustVerifyEmail {
         'reset_request',
         'status',
         'deleted_at',
-        'email_verified_at'
+        'email_verified_at',
+        'two_factor_secret',
+        'two_factor_expires_at',
+        'two_factor_enabled'
     ];
 
     protected static function boot() {
@@ -105,6 +108,14 @@ class User extends Authenticatable implements MustVerifyEmail {
 
     public function school() {
         return $this->belongsTo(School::class)->withTrashed();
+    }
+
+    public function students() {
+        return $this->hasOne(Students::class, 'user_id', 'id');
+    }
+
+    public function session_year() {
+        return $this->hasOne(SessionYear::class, 'id', 'session_year_id');
     }
 
 //    public function guardianRelationChild() {
@@ -226,9 +237,12 @@ class User extends Authenticatable implements MustVerifyEmail {
     }
 
     public function extra_student_details() {
-        return $this->hasMany(ExtraStudentData::class, 'student_id', 'id')->withTrashed();
+        return $this->hasMany(ExtraStudentData::class, 'user_id', 'id')->withTrashed();
     }
 
+    public function extra_user_details() {
+        return $this->hasMany(ExtraStudentData::class, 'user_id', 'id')->withTrashed();
+    }
 
     public function selectedStudentSubjects() {
         $studentSubject = app(StudentSubjectInterface::class);
@@ -340,7 +354,9 @@ class User extends Authenticatable implements MustVerifyEmail {
     {
         return $this->hasMany(StudentSubject::class, 'student_id');
     }
-
     
-
+    public function extra_user_datas()
+    {
+        return $this->hasMany(ExtraStudentData::class, 'user_id');
+    }
 }

@@ -3,6 +3,16 @@
     {{ __('dashboard') }}
 @endsection
 @section('content')
+
+<style>
+    .truncateTitle {
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+
     <div class="content-wrapper">
         <div class="page-header">
             <h3 class="page-title">
@@ -279,9 +289,7 @@
                             <h3 class="card-title">{{ __('attendance') }}</h3>
                         </div>
                         <div class="col-sm-12 col-md-6">
-                            {!! Form::select('class_id', $class_names, null, [
-                                'class' => 'form-control form-control-sm class-section-attendance',
-                            ]) !!}
+                            {!! Form::select('class_id', count($class_names) > 0 ? $class_names : ['' => 'Not Data Available'], null, ['class' => 'form-control form-control-sm class-section-attendance',]) !!}
                         </div>
                     </div>
                     <div id="attendanChart">
@@ -296,7 +304,7 @@
                 <div class="card-body custom-card-body">
                     <h4 class="card-title">{{ __('announcement') }}</h4>
                     <div class="table-responsive v-scroll">
-                        <table class="table">
+                        {{-- <table class="table">
                             <thead>
                                 <tr>
                                     <th> {{ __('no.') }}</th>
@@ -310,11 +318,33 @@
                                         <tr>
                                             <td>{{ $key + 1 }}</td>
                                             <td>{{ $row->title }}</td>
-                                            <td>{{ $row->description }}</td>
+                                            <td>
+                                                <div class="content hideContent">
+                                                    <p data-events="tableDescriptionEvents" data-formatter="descriptionFormatter" data-field="description">{{ $row->description }}</p>
+                                                </div>
+                                                <div class="show-more show-option">
+                                                    <span class="text-info">Read more</span>
+                                                </div>
+                                            </td>
                                         </tr>
                                     @endforeach
                                 @endif
                             </tbody>
+                        </table> --}}
+                        <table aria-describedby="mydesc" class='table' id='table_list' data-toggle="table"
+                                data-url="{{ route('announcement.show',1) }}"
+                                data-side-pagination="server" data-pagination="true"
+                                data-page-list="[5, 10, 20, 50, 100, 200]"
+                                data-trim-on-search="false" data-mobile-responsive="true" data-sort-name="id"
+                                data-sort-order="desc" data-maintain-selected="true" data-escape="true">
+                            <thead>
+                            <tr>
+                                <th scope="col" data-field="id" data-sortable="true" data-visible="false">{{ __('id') }}</th>
+                                <th scope="col" data-field="no">{{ __('no.') }}</th>
+                                <th scope="col" data-field="title" class="truncateTitle">{{ __('title') }}</th>
+                                <th scope="col" data-events="tableDescriptionEvents" data-formatter="descriptionFormatter" data-field="description">{{ __('description') }}</th>
+                            </tr>
+                            </thead>
                         </table>
                     </div>
                 </div>
@@ -458,16 +488,34 @@
                     <h4 class="card-title">{{ __('holiday') }}</h4>
                     <div class="v-scroll dashboard-description">
                         <table class="table custom-table">
-                            <tbody>
-                                @foreach ($holiday as $holiday)
+                            @hasNotFeature('Holiday Management')
+                                <tbody class="leave-list">
+                                    <tr>
+                                        <td colspan="2" class="text-center text-small">
+                                            {{ __('Purchase') . ' ' . __('Holiday Management') . ' ' . __('to Continue using this functionality') }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            @endHasNotFeature
+
+                            @hasFeature('Holiday Management')
+                                <tbody>
+                                    @forelse ($holiday as $holiday)
                                     <tr>
                                         <td>{{ $holiday->title }}</td>
                                         <td><span
                                                 class="float-right text-muted">{{ date('d - M', strtotime($holiday->date)) }}</span>
                                         </td>
                                     </tr>
-                                @endforeach
-                            </tbody>
+                                    @empty
+                                        <tr>
+                                            <td colspan="2" class="text-center text-small">
+                                                {{ __('No Data Available') }}
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            @endHasFeature
                         </table>
                     </div>
                 </div>
@@ -636,15 +684,18 @@
                     </h4>
                     <div class="v-scroll">
                         <table class="table custom-table">
-                            <thead>
-                                <th></th>
-                                <th>{{ __('name') }}</th>
-                                <th>{{ __('role') }}</th>
-                                <th class="text-right">{{ __('assign_schools') }}</th>
+                            @hasNotFeature('Staff Management')
+                                <thead>
+                                    <th></th>
+                                    <th>{{ __('name') }}</th>
+                                    <th>{{ __('role') }}</th>
+                                    <th class="text-right">{{ __('assign_schools') }}</th>
                             </thead>
-                            <tbody>
-                                @foreach ($staffs as $staff)
-                                    <tr>
+                            {{-- @endHasNotFeature
+                            @hasFeature('Staff Management') --}}
+                                <tbody>
+                                    @foreach ($staffs as $staff)
+                                        <tr>
                                         <td>
                                             <img src="{{ $staff->image }}" onerror="onErrorImage(event)"
                                                 class="me-2" alt="image">
@@ -653,8 +704,9 @@
                                         <td>{{ $staff->roles->first()->name ?? '' }}</td>
                                         <td>{{ $staff->school_names }}</td>
                                     </tr>
-                                @endforeach
-                            </tbody>
+                                    @endforeach
+                                </tbody>
+                            @endHasNotFeature
                         </table>
                     </div>
                 </div>
@@ -697,6 +749,8 @@
     }, 500);
 </script>
 @endif
+
+
 <script>
     window.onload = setTimeout(() => {
         $('#filter_expense_session_year_id').trigger('change');

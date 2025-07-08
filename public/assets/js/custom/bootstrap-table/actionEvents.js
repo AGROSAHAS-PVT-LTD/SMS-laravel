@@ -14,11 +14,20 @@ window.addonEvents = {
         $('#edit_name').val(row.name);
         $('#edit_price').val(row.price);
         setTimeout(() => {
+            if( $('#edit_name').val() ) {
+                $('#edit_name').prop('required',false);
+            } else {
+                $('#edit_name').prop('required',true);
+            }
+            if( $('#edit_price').val() ) {
+                $('#edit_price').prop('required',false);
+            } else {
+                $('#edit_price').prop('required',true);
+            }
             $('input[name=feature_id][value=' + row.feature.id + '].feature-radio').prop('checked', true);
         }, 500);
     }
 };
-
 
 window.mediumEvents = {
     'click .edit-data': function (e, value, row) {
@@ -115,7 +124,11 @@ window.examEvents = {
                 let url = baseUrl + '/exams/publish/' + row.id;
 
                 function successCallback(response) {
-                    showSuccessToast(response.message);
+                    if (response.warning) {
+                        showWarningToast(response.message);
+                    } else {
+                        showSuccessToast(response.message);
+                    }
                     $('#table_list').bootstrapTable('refresh');
                 }
 
@@ -152,7 +165,24 @@ window.assignmentEvents = {
         $('#edit-subject-id').val(row.class_subject_id);
         $('#edit_name').val(row.name);
         $('#edit_instructions').val(row.instructions);
+        
+        // set the class section and subject id
+        $('.edit_class_section_id').val(row.class_section_id).trigger('change');
+        $('#class_subject_id_value').val(row.class_subject_id);
 
+
+        // $('#edit_checkbox_add_url').prop('checked', false).trigger('change');
+        
+        if (row.file && row.file.length > 0) {
+            $.each(row.file, function (key, data) {
+                if(data.type == 4) {
+                    $('.edit_checkbox_add_url').prop('checked', true).trigger('change');
+                    $('#edit_add_url').val(data.file_url);
+                    // $('#edit_add_url').val(data.file_url);
+                }
+            });
+        }
+        
         let dt = new Date(row.due_date);
         let Fromdatetime = dt.getFullYear() + "-" + ("0" + (dt.getMonth() + 1)).slice(-2) + "-" + ("0" + dt.getDate()).slice(-2) + "T" + ("0" + dt.getHours()).slice(-2) + ":" + ("0" + dt.getMinutes()).slice(-2) + ":" + ("0" + dt.getSeconds()).slice(-2);
         $('#edit_due_date').val(Fromdatetime);
@@ -184,6 +214,27 @@ window.announcementEvents = {
 
         $('.edit_class_section_id').val(row.class_sections).trigger('change');
         $('.edit_subject_id').val(row.class_subject_id);
+
+        // $('#edit_checkbox_add_url').prop('checked', false).trigger('change');
+
+
+        for (let i = 0; i < row.announcement_class.length; i++) {
+            const element = row.announcement_class[i];
+            $('.edit_subject_id').val(element.class_subject.subject_id);
+            $('#class_subject_id_value').val(element.class_subject.subject_id);
+            $('.edit_class_section_id').val(element.class_section_id);
+            
+        }
+        
+        if (row.file && row.file.length > 0) {
+            $.each(row.file, function (key, data) {
+                if(data.type == 4) {
+                    // $('.edit_checkbox_add_url').prop('checked', true).trigger('change');
+                    // $('#edit_add_url').val(data.file_url);
+                }
+            });
+        }
+        
         if (row.file) {
             $.each(row.file, function (key, data) {
                 html_file += '<div class="file"><a target="_blank" href="' + data.file_url + '" class="m-1">' + data.file_name + '</a> <span class="fa fa-times text-danger remove-assignment-file" data-id=' + data.id + '></span><br><br></div>'
@@ -208,6 +259,9 @@ window.guardianEvents = {
 
 window.studentEvents = {
     'click .edit-data': function (e, value, row) {
+        // Reset the radio button
+        $('input[name=application_status]').prop('checked', false);
+
         $('#edit_id').val(row.id);
         $('#edit_user_id').val(row.user_id);
         $('#edit_first_name').val(row.user.first_name);
@@ -220,65 +274,63 @@ window.studentEvents = {
         $('#edit-current-address').val(row.user.current_address);
         $('#edit-permanent-address').val(row.user.permanent_address);
         $('#edit_student_class_section_id').val(row.class_section_id);
-      
         $('#edit_student_class_id').val(row.class_id).trigger('change');
 
+        // Set gender radio button
         if (row.eng_student_gender == 'male') {
-            $(document).find('#female').prop('checked', false);
-            $(document).find('#male').prop('checked', true);
+            $('#male').prop('checked', true);
+            $('#female').prop('checked', false);
         } else {
-            $(document).find('#male').prop('checked', false);
-            $(document).find('#female').prop('checked', true);
+            $('#male').prop('checked', false);
+            $('#female').prop('checked', true);
         }
 
         setTimeout(() => {
-
             // Fill the Extra Field's Data
-            if (row.extra_fields.length) {
+            if (row.extra_fields && row.extra_fields.length) {
                 $.each(row.extra_fields, function (index, value) {
-
                     let fieldName = $.escapeSelector(value.form_field.name.replace(/ /g, '_'));
-
                     $(`#${fieldName}_id`).val(value.id);
+
                     if (value.form_field.default_values && value.form_field.default_values.length) {
-                        $.each(value.form_field.default_values, function (key) {
-                            if (typeof (value.data) == 'object') {
-                                $.each(value.data, function (dataKey, dataValue) {
-                                    let checked = ($('#' + fieldName + '_' + dataKey).val() == dataValue);
-                                    $('#' + fieldName + '_' + dataKey).prop('checked', checked);
-                                });
-                            } else if (value.form_field.type == 'dropdown') {
-                                $('#' + fieldName).val(value.data);
-                            } else {
-                                $('#' + fieldName + '_' + key).prop('checked', false);
-                                // Check data is json format or not
-                                if (isJSON(value.data)) { // Checkbox
-                                    let chkArray = JSON.parse(value.data);
-                                    $.each(chkArray, function (chkKey, chkValue) {
-                                        if ($('#' + fieldName + '_' + key).val() == chkValue) {
-                                            $('#' + fieldName + '_' + key).prop('checked', true);
-                                        }
-                                    })
-                                } else {
-                                    // Radio buttons
-                                    let checked = ($('#' + fieldName + '_' + key).val() == value.data);
-                                    $('#' + fieldName + '_' + key).prop('checked', checked);
+                        if (value.form_field.type === 'radio') {
+                            // Handle radio buttons
+                            $(`input[name="extra_fields[${index}][data]"]`).prop('checked', false);
+                            $.each(value.form_field.default_values, function (key, defaultValue) {
+                                let radioBtn = $(`#${fieldName}_${key}`);
+                                if (radioBtn.val() === value.data) {
+                                    radioBtn.prop('checked', true);
                                 }
-                            }
-                        });
+                            });
+                        } else if (value.form_field.type === 'checkbox') {
+                            // Handle checkboxes
+                            let checkboxValues = isJSON(value.data) ? JSON.parse(value.data) : [value.data];
+                            $.each(value.form_field.default_values, function (key, defaultValue) {
+                                let checkbox = $(`#${fieldName}_${key}`);
+                                checkbox.prop('checked', checkboxValues.includes(checkbox.val()));
+                            });
+                        } else if (value.form_field.type === 'dropdown') {
+                            // Handle dropdown
+                            $(`#${fieldName}`).val(value.data);
+                        }
                     } else {
-                        if (value.form_field.type == 'file') {
+                        if (value.form_field.type === 'file') {
+                            // Handle file type
                             if (value.data) {
-                                $('#file_div_' + fieldName).removeClass('d-none').find('#file_link_' + fieldName).attr('href', value.file_url);
+                                $(`#file_div_${fieldName}`).removeClass('d-none')
+                                    .find(`#file_link_${fieldName}`).attr('href', value.file_url);
                             } else {
-                                $('#file_div_' + fieldName).addClass("d-none").find('#file_link_' + fieldName).attr('href', "");
+                                $(`#file_div_${fieldName}`).addClass('d-none')
+                                    .find(`#file_link_${fieldName}`).attr('href', '');
                             }
                         } else {
-                            $('#' + fieldName).val(value.data);
+                            // Handle other input types
+                            $(`#${fieldName}`).val(value.data);
                         }
                     }
                 });
             } else {
+                // Reset all form fields if no extra fields data
                 $('.text-fields').val('');
                 $('.number-fields').val('');
                 $('.select-fields').val('');
@@ -289,15 +341,6 @@ window.studentEvents = {
             }
         }, 1000);
 
-        function isJSON(data) {
-            try {
-                JSON.parse(data);
-                return true;
-            } catch (error) {
-                return false;
-            }
-        }
-
         // Guardian Data
         $(".edit-guardian-search").select2("trigger", "select", {
             data: {
@@ -307,21 +350,21 @@ window.studentEvents = {
             }
         });
 
-        //Adding delay to fill data so that select2 code and this code don't conflict each other
         setTimeout(function () {
             $('#edit_guardian_first_name').val(row.guardian.first_name);
             $('#edit_guardian_last_name').val(row.guardian.last_name);
             $('#edit_guardian_mobile').val(row.guardian.mobile);
             $('#edit-guardian-image-tag').attr('src', row.guardian.image);
 
+            // Set guardian gender radio button
+            if (row.eng_guardian_gender == 'male') {
+                $('#edit-guardian-male').prop('checked', true);
+                $('#edit-guardian-female').prop('checked', false);
+            } else {
+                $('#edit-guardian-male').prop('checked', false);
+                $('#edit-guardian-female').prop('checked', true);
+            }
         }, 500);
-        if (row.eng_guardian_gender == 'male') {
-            $(document).find('#edit-guardian-female').prop('checked', false);
-            $(document).find('#edit-guardian-male').prop('checked', true);
-        } else {
-            $(document).find('#edit-guardian-male').prop('checked', false);
-            $(document).find('#edit-guardian-female').prop('checked', true);
-        }
     }, 'click .deactivate-student': function (e) {
         e.preventDefault();
         showDeletePopupModal($(e.currentTarget).attr('href'), {
@@ -347,6 +390,16 @@ window.studentEvents = {
     }
 };
 
+function isJSON(data) {
+    if (typeof data !== 'string') return false;
+    try {
+        JSON.parse(data);
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
 window.assignmentSubmissionEvents = {
     'click .edit-data': function (e, value, row) {
         let file_html = "";
@@ -364,17 +417,24 @@ window.assignmentSubmissionEvents = {
             $('#points_div').show();
             $('#assignment_points').text('/ ' + row.assignment.points);
             $('#points').prop('max', row.assignment.points);
-            $('#points').val(row.points);
         } else {
             $('#points_div').hide();
             $('#assignment_points').text('');
         }
         $('#feedback').val(row.feedback);
+        
+        // Handle status and points together
         if (row.status === 1) {
-            $('#status_accept').attr('checked', true);
+            $('#status_accept').prop('checked', true);
+            $('#points').val(row.points);
+            $('#points').attr('readonly', false);
         } else if (row.status === 2) {
-            $('#points').val(null);
-            $('#status_reject').attr('checked', true);
+            $('#status_reject').prop('checked', true);
+            $('#points').val(0);
+            $('#points').attr('readonly', true);
+        } else {
+            // Status 0 (pending) or other statuses
+            $('#points').val(row.points);
         }
     }
 };
@@ -680,6 +740,82 @@ window.teacherEvents = {
         $('#edit_salary').val(row.staff.salary);
         $('#edit_joining_date').val(moment(row.staff.joining_date, 'YYYY-MM-DD').format('DD-MM-YYYY'));
 
+        // two factor verification
+        if (row.two_factor_enabled == 1) {
+            $('#two_factor_verification').prop('checked', true);
+            $('#two_factor_verification').val(1);
+        } else {
+            $('#two_factor_verification').prop('checked', false);
+            $('#two_factor_verification').val(0);
+        }
+
+        setTimeout(() => {
+
+            // Fill the Extra Field's Data
+            if (row.extra_student_details.length) {
+                $.each(row.extra_student_details, function (index, value) {
+                    console.log('value :- ', value);
+
+                    let fieldName = $.escapeSelector(value.form_field.name.replace(/ /g, '_'));
+
+                    $(`#${fieldName}_id`).val(value.id);
+                    if (value.form_field.default_values && value.form_field.default_values.length) {
+                        $.each(value.form_field.default_values, function (key) {
+                            if (typeof (value.data) == 'object') {
+                                $.each(value.data, function (dataKey, dataValue) {
+                                    let checked = ($('#' + fieldName + '_' + dataKey).val() == dataValue);
+                                    $('#' + fieldName + '_' + dataKey).prop('checked', checked);
+                                });
+                            } else if (value.form_field.type == 'dropdown') {
+                                $('#' + fieldName).val(value.data);
+                            } else {
+                                $('#' + fieldName + '_' + key).prop('checked', false);
+                                // Check data is json format or not
+                                if (isJSON(value.data)) { // Checkbox
+                                    let chkArray = JSON.parse(value.data);
+                                    $.each(chkArray, function (chkKey, chkValue) {
+                                        if ($('#' + fieldName + '_' + key).val() == chkValue) {
+                                            $('#' + fieldName + '_' + key).prop('checked', true);
+                                        }
+                                    })
+                                } else {
+                                    // Radio buttons
+                                    let checked = ($('#' + fieldName + '_' + key).val() == value.data);
+                                    $('#' + fieldName + '_' + key).prop('checked', checked);
+                                }
+                            }
+                        });
+                    } else {
+                        if (value.form_field.type == 'file') {
+                            if (value.data) {
+                                $('#file_div_' + fieldName).removeClass('d-none').find('#file_link_' + fieldName).attr('href', value.file_url);
+                            } else {
+                                $('#file_div_' + fieldName).addClass("d-none").find('#file_link_' + fieldName).attr('href', "");
+                            }
+                        } else {
+                            $('#' + fieldName).val(value.data);
+                        }
+                    }
+                });
+            } else {
+                $('.text-fields').val('');
+                $('.number-fields').val('');
+                $('.select-fields').val('');
+                $('.radio-fields').prop('checked', false);
+                $('.checkbox-fields').prop('checked', false);
+                $('.textarea-fields').val('');
+                $('.file-div').addClass('d-none');
+            }
+        }, 1000);
+
+        function isJSON(data) {
+            try {
+                JSON.parse(data);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
     }, 'click .deactivate-teacher': function (e) {
         e.preventDefault();
         showSweetAlertConfirmPopup($(e.currentTarget).attr('href'), 'PUT', {
@@ -755,16 +891,142 @@ window.schoolEvents = {
         $('#edit_school_support_phone').val(row.support_phone);
         $('#edit_school_address').val(row.address);
         $('#edit_school_tagline').val(row.tagline);
-        $('#edit_domain').val(row.domain);
+
+
+        // set the school url based on the domain type
+        $('.school_url').attr('href', '');
+        $('.school_url').text('');
+        if (row.school_domain && row.school_url) {
+            if(row.domain_type == "default") {
+                $('.school_url').attr('href', row.school_url);
+                $('.school_url').text(row.school_url);
+            } else {
+                $('.school_url').attr('href', row.school_url);
+                $('.school_url').text(row.school_url);
+            }
+        } else {
+            $('.school_url').attr('href', '');
+            $('.school_url').text('');
+        }
+      
         $('#school_code').val(row.code);
 
         
-        
+        if(row.domain_type == "default")
+        {
+            $('.edit_default').prop('checked',true);
+
+            $('.defaultDomain').show().find('input').prop('disabled', false);
+            $('.customDomain').hide().find('input').prop('disabled', true);
+
+            $('#edit_custom_domain').val('');
+            $('#edit_default_domain').val(row.domain);
+
+        }else if(row.domain_type == "custom"){
+            $('.edit_custom').prop('checked',true);
+
+            $('.customDomain').show().find('input').prop('disabled', false);
+            $('.defaultDomain').hide().find('input').prop('disabled', true);
+
+            $('#edit_default_domain').val('');
+            $('#edit_custom_domain').val(row.domain);
+
+        }else{
+            $('.edit_default').prop('checked',false);
+            $('.edit_custom').prop('checked',false);
+            $('#edit_custom_domain').val('');
+            $('#edit_default_domain').val('');
+            $('.defaultDomain').hide().find('input').prop('disabled', true);
+            $('.customDomain').hide().find('input').prop('disabled', true);
+
+        }
+
+        // Hide the school url if the default domain is not set
+        if($('#edit_default_domain').val()) {
+            $('#school_url').hide();
+        } else {
+            $('#school_url').show();
+        }
         
         if (row.active_plan == '-') {
+            $('#edit_assign_package_container').show();
             $('#edit_assign_package').attr('disabled', false);
         } else {
+            $('#edit_assign_package_container').hide();
             $('#edit_assign_package').attr('disabled', true);
+        }
+
+        setTimeout(() => {
+
+            // Fill the Extra Field's Data
+            if (row.extra_fields.length) {
+                $.each(row.extra_fields, function (index, value) {
+                    let fieldName = $.escapeSelector(value.form_field.name.replace(/ /g, '_'));
+
+                    $(`#edit_${fieldName}_id`).val(value.id || '');
+
+                    if (value.form_field.default_values && value.form_field.default_values.length) {
+                        $.each(value.form_field.default_values, function (key) {
+                            if (typeof (value.data) == 'object') {
+                                $.each(value.data, function (dataKey, dataValue) {
+                                    let checked = ($('#' + fieldName + '_' + dataKey).val() == dataValue);
+                                    $('#edit_' + fieldName + '_' + dataKey).prop('checked', checked);
+                                });
+                            } else if (value.form_field.type == 'dropdown') {
+                                $('#edit_' + fieldName).val(value.data);
+                            } else {
+                                $('#edit_' + fieldName + '_' + key).prop('checked', false);
+                                // Check data is json format or not
+                                if (isJSON(value.data)) { // Checkbox
+                                    let chkArray = JSON.parse(value.data);
+                                    $.each(chkArray, function (chkKey, chkValue) {
+                                        if ($('#edit_' + fieldName + '_' + key).val() == chkValue) {
+                                            $('#edit_' + fieldName + '_' + key).prop('checked', true);
+                                        }
+                                    })
+                                } else {
+                                    // Radio buttons
+                                    let checked = ($('#' + fieldName + '_' + key).val() == value.data);
+                                    $('#edit_' + fieldName + '_' + key).prop('checked', checked);
+                                }
+                            }
+                        });
+                    } else {
+                        if (value.form_field.type == 'file') {
+                            if (value.data) {
+                                var file_url = value.data;
+                                var storage_url = window.location.origin + "/storage/" + file_url;
+                        
+                                $('#edit_file_div_' + fieldName).removeClass('d-none').find('#edit_file_link_' + fieldName).attr('href', storage_url);
+                                $('#edit_' + fieldName).removeAttr('required');
+                            } else {
+                                $('#edit_file_div_' + fieldName).addClass("d-none").find('#edit_file_link_' + fieldName).attr('href', "");
+                                $('#edit_' + fieldName).attr('required', 'required');
+                            }
+                        } else {
+                            $('#edit_' + fieldName).val(value.data);
+                        }
+                    }
+                });
+            } else {
+                $('.text-fields').val('');
+                $('.number-fields').val('');
+                $('.select-fields').val('');
+                $('.radio-fields').prop('checked', false);
+                $('.checkbox-fields').prop('checked', false);
+                $('.textarea-fields').val('');
+                $('.file-div').addClass('d-none');
+                $('.edit_extra_fields_id').val('');
+            }
+        }, 1000);
+
+        function isJSON(data) {
+            try {
+                JSON.parse(data);
+                return true;
+            } catch (error) {
+                return false;
+            }
         }
     },
     'click .update-admin-data': function (e, value, row) {
@@ -776,6 +1038,22 @@ window.schoolEvents = {
         $('#edit-admin-last-name').val(row.user.last_name);
         $('#edit-admin-contact').val(row.user.mobile);
         $("#admin-image-tag").attr('src', row.user.image);
+
+        // Check if the school admin email is verified
+        if (row.user.email_verified_at) {
+            $('#manually_verify_email').prop('checked', true);
+            $('#manually_verify_email').prop('disabled', true);
+        } else {
+            $('#manually_verify_email').prop('checked', false);
+            $('#manually_verify_email').prop('disabled', false);
+        }
+        console.log(row.user.two_factor_enabled);
+        
+        if (row.user.two_factor_enabled == 1) {
+            $('#two_factor_verification').prop('checked', true);
+        } else {
+            $('#two_factor_verification').prop('checked', false);
+        }
         // $('#edit-admin-first-name').val(row.id);
 
 
@@ -1102,7 +1380,6 @@ window.lessonTopicEvents = {
 
 window.staffEvents = {
     'click .edit-data': function (e, value, row) {
-
         $('#edit_first_name').val(row.first_name);
         $('#edit_last_name').val(row.last_name);
         $('#edit_mobile').val(row.mobile);
@@ -1114,6 +1391,87 @@ window.staffEvents = {
         $('.edit-dob').val(moment(row.dob, 'YYYY-MM-DD').format('DD-MM-YYYY'));
         
         $('#edit_joining_date').val(moment(row.staff.joining_date, 'YYYY-MM-DD').format('DD-MM-YYYY'));
+
+        if (row.two_factor_enabled == 1) {
+            $('#two_factor_verification').prop('checked', true);
+            $('#two_factor_verification').val(1);
+        } else {
+            $('#two_factor_verification').prop('checked', false);
+            $('#two_factor_verification').val(0);
+        }
+
+        setTimeout(() => {
+            // Fill the Extra Field's Data
+            if (row.extra_fields.length) {
+                $.each(row.extra_fields, function (index, value) {
+                    let fieldName = $.escapeSelector(value.form_field.name.replace(/ /g, '_'));
+
+                    $(`#edit_${fieldName}_id`).val(value.id || '');
+                    if (value.form_field.default_values && value.form_field.default_values.length) {
+                        $.each(value.form_field.default_values, function (key) {
+                            if (typeof (value.data) == 'object') {
+                                $.each(value.data, function (dataKey, dataValue) {
+                                    let checked = ($('#' + fieldName + '_' + dataKey).val() == dataValue);
+                                    $('#edit_' + fieldName + '_' + dataKey).prop('checked', checked);
+                                });
+                            } else if (value.form_field.type == 'dropdown') {
+                                $('#edit_' + fieldName).val(value.data);
+                            } else {
+                                $('#edit_' + fieldName + '_' + key).prop('checked', false);
+                                // Check data is json format or not
+                                if (isJSON(value.data)) { // Checkbox
+                                    let chkArray = JSON.parse(value.data);
+                                    $.each(chkArray, function (chkKey, chkValue) {
+                                        if ($('#edit_' + fieldName + '_' + key).val() == chkValue) {
+                                            $('#edit_' + fieldName + '_' + key).prop('checked', true);
+                                        }
+                                    })
+                                } else {
+                                    // Radio buttons
+                                    let checked = ($('#' + fieldName + '_' + key).val() == value.data);
+                                    $('#edit_' + fieldName + '_' + key).prop('checked', checked);
+                                }
+                            }
+                        });
+                    } else {
+                        if (value.form_field.type == 'file') {
+                            if (value.data) {
+                                var file_url = value.data;
+                                var storage_url = window.location.origin + "/storage/" + file_url;
+                        
+                                $('#edit_file_div_' + fieldName).removeClass('d-none').find('#edit_file_link_' + fieldName).attr('href', storage_url);
+                        
+                                $('#edit_' + fieldName).removeAttr('required');
+                            } else {
+                                $('#edit_file_div_' + fieldName).addClass("d-none").find('#edit_file_link_' + fieldName).attr('href', "");
+                        
+                                $('#edit_' + fieldName).attr('required', 'required');
+                            }
+                        } else {
+                            $('#edit_' + fieldName).val(value.data);
+                        }        
+                    }
+                });
+            } else {
+                $('.text-fields').val('');
+                $('.number-fields').val('');
+                $('.select-fields').val('');
+                $('.radio-fields').prop('checked', false);
+                $('.checkbox-fields').prop('checked', false);
+                $('.textarea-fields').val('');
+                $('.file-div').addClass('d-none');
+                $('.edit_extra_fields_id').val('');
+            }
+        }, 1000);
+
+        function isJSON(data) {
+            try {
+                JSON.parse(data);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
         
     }, 'click .deactivate-staff': function (e) {
         e.preventDefault();
@@ -1193,6 +1551,8 @@ window.subscriptionEvents = {
     'click .edit-data': function (e, value, row) {
         $('#edit_id').val(row.id);
         $('.subscription_id').val(row.id);
+        
+        
         const options = {
             year: 'numeric',
             month: 'long',
@@ -1355,7 +1715,7 @@ window.subscriptionEvents = {
             var options = {
                 "amount": (total_addon + total_user_charges),
             };
-
+            
             var rzp1 = new Razorpay(options);
             document.getElementByClassName('razorpay-payment-button').onclick = function(e){
                 rzp1.open();
@@ -1400,24 +1760,47 @@ window.tableDescriptionEvents = {
 
 window.paryollSettingsEvents = {
     'click .edit-data': function (e, value, row) {
+        // Initially hide both divs
         $('#amount-div').hide();
         $('#percentage-div').hide();
 
+        // Set basic form values
         $('#edit_id').val(row.id);
         $('#name').val(row.name);
         $("input[name='type'][value='"+row.type+"']").prop("checked", true);
-        if(row.amount != null)
-        {
+
+        // Clear previous values
+        $('#amount').val('');
+        $('#percentage').val('');
+
+        // Clear the amount-div and percentage-div
+        $('#amount-div').hide();
+        $('#percentage-div').hide();
+
+        // Determine which amount type to select based on data
+        if(row.percentage != null && row.percentage !== '' && row.percentage !== '0') {
+            // Select percentage radio
+            $("input[name='amount_type'][value='percentage']").prop("checked", true);
+            $('#percentage-div').show();
+            $('#percentage').val(row.percentage);
+        } else {
+            // Select fixed radio
+            $("input[name='amount_type'][value='fixed']").prop("checked", true);
             $('#amount-div').show();
             $('#amount').val(row.amount);
         }
-
-        if(row.percentage != null)
-            {
-                $('#percentage-div').show();
-                $('#percentage').val(row.percentage);
-            }
         
+        // Trigger change event to ensure UI is updated
+        $("input[name='amount_type']:checked").trigger('change');
+        
+        // Add change event handler to clear the other field when one is selected
+        $("input[name='amount_type']").change(function() {
+            if($(this).val() === 'fixed') {
+                $('#percentage').val(''); // Clear percentage field when fixed is selected
+            } else {
+                $('#amount').val(''); // Clear amount field when percentage is selected
+            }
+        });
     }
 };
 
@@ -1441,5 +1824,95 @@ window.deductionEvents = {
                 $('#percentage').val(row.percentage);
             }
         
+    }
+};
+
+window.schoolInquiryEvents = {
+    'click .edit-data': function (e, value, row) {
+        
+       // Reset the radio button
+       $('input[name=application_status]').prop('checked', false);
+    
+        $('#edit_school_id').val(row.id);
+        $('#edit_school_name').val(row.school_name);
+        $('#edit_school_support_email').val(row.school_email);
+        $('#edit_school_support_phone').val(row.school_phone);
+        $('#edit_school_address').val(row.school_address);
+        $('#edit_school_tagline').val(row.school_tagline);
+        $('input[name=status][value=' + row.status + ']').prop('checked', true);
+
+
+        setTimeout(() => {
+
+            // Fill the Extra Field's Data
+            if (row.extra_fields.length) {
+                $.each(row.extra_fields, function (index, value) {
+
+                    let fieldName = $.escapeSelector(value.form_field.name.replace(/ /g, '_'));
+
+                    $(`#${fieldName}_id`).val(value.id);
+                    if (value.form_field.default_values && value.form_field.default_values.length) {
+                        $.each(value.form_field.default_values, function (key) {
+                            if (typeof (value.data) == 'object') {
+                                $.each(value.data, function (dataKey, dataValue) {
+                                    let checked = ($('#' + fieldName + '_' + dataKey).val() == dataValue);
+                                    $('#' + fieldName + '_' + dataKey).prop('checked', checked);
+                                });
+                            } else if (value.form_field.type == 'dropdown') {
+                                $('#' + fieldName).val(value.data);
+                            } else {
+                                $('#' + fieldName + '_' + key).prop('checked', false);
+                                // Check data is json format or not
+                                if (isJSON(value.data)) { // Checkbox
+                                    let chkArray = JSON.parse(value.data);
+                                    $.each(chkArray, function (chkKey, chkValue) {
+                                        if ($('#' + fieldName + '_' + key).val() == chkValue) {
+                                            $('#' + fieldName + '_' + key).prop('checked', true);
+                                        }
+                                    })
+                                } else {
+                                    // Radio buttons
+                                    let checked = ($('#' + fieldName + '_' + key).val() == value.data);
+                                    $('#' + fieldName + '_' + key).prop('checked', checked);
+                                }
+                            }
+                        });
+                    } else {
+                        if (value.form_field.type == 'file') {
+                            if (value.data) {
+                                $('#file_div_' + fieldName).removeClass('d-none').find('#file_link_' + fieldName).attr('href', value.file_url);
+                            } else {
+                                $('#file_div_' + fieldName).addClass("d-none").find('#file_link_' + fieldName).attr('href', "");
+                            }
+                        } else {
+                            $('#' + fieldName).val(value.data);
+                        }
+                    }
+                });
+            } else {
+                $('.text-fields').val('');
+                $('.number-fields').val('');
+                $('.select-fields').val('');
+                $('.radio-fields').prop('checked', false);
+                $('.checkbox-fields').prop('checked', false);
+                $('.textarea-fields').val('');
+                $('.file-div').addClass('d-none');
+            }
+        }, 1000);
+
+        function isJSON(data) {
+            try {
+                JSON.parse(data);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+    },
+};
+
+window.assignElectiveSubjectActionEvents = {
+    'click .edit-data': function (e, value, row) {
+        console.log(row);
     }
 };

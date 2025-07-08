@@ -212,3 +212,12 @@ td img {
         max-height: calc(100vh - 120px) !important;
     }
 }
+
+.wizard>.steps>ul>li {
+    width: 15% !important;
+}
+
+.wizard>.steps a {
+    background-color: var(--theme-color);
+    color: #fff;
+}

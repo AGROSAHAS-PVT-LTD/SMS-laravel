@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OnlineExamCommon;
 use App\Repositories\ClassSection\ClassSectionInterface;
 use App\Repositories\ClassSubject\ClassSubjectInterface;
 use App\Repositories\OnlineExam\OnlineExamInterface;
+use App\Repositories\OnlineExamCommon\OnlineExamCommonInterface;
 use App\Repositories\OnlineExamQuestion\OnlineExamQuestionInterface;
 use App\Repositories\OnlineExamQuestionChoice\OnlineExamQuestionChoiceInterface;
 use App\Repositories\OnlineExamQuestionOption\OnlineExamQuestionOptionInterface;
@@ -16,6 +18,7 @@ use App\Repositories\SubjectTeacher\SubjectTeacherInterface;
 use App\Services\BootstrapTableService;
 use App\Services\CachingService;
 use App\Services\ResponseService;
+use App\Services\SessionYearsTrackingsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -35,9 +38,10 @@ class OnlineExamController extends Controller {
     private StudentOnlineExamStatusInterface $studentOnlineExamStatus;
     private ClassSubjectInterface $classSubjects;
     private SessionYearInterface $sessionYear;
+    private OnlineExamCommonInterface $onlineExamCommon;
+    private SessionYearsTrackingsService $sessionYearsTrackingsService;
 
-
-    public function __construct(ClassSectionInterface $classSection, SubjectTeacherInterface $subjectTeacher, OnlineExamInterface $onlineExam, OnlineExamQuestionChoiceInterface $onlineExamQuestionChoice, OnlineExamQuestionInterface $onlineExamQuestion, OnlineExamQuestionOptionInterface $onlineExamQuestionOption, OnlineExamStudentAnswerInterface $onlineExamStudentAnswer, CachingService $cachingService, StudentInterface $student, StudentOnlineExamStatusInterface $studentOnlineExamStatus, ClassSubjectInterface $classSubjects, SessionYearInterface $sessionYear) {
+    public function __construct(ClassSectionInterface $classSection, SubjectTeacherInterface $subjectTeacher, OnlineExamInterface $onlineExam, OnlineExamQuestionChoiceInterface $onlineExamQuestionChoice, OnlineExamQuestionInterface $onlineExamQuestion, OnlineExamQuestionOptionInterface $onlineExamQuestionOption, OnlineExamStudentAnswerInterface $onlineExamStudentAnswer, CachingService $cachingService, StudentInterface $student, StudentOnlineExamStatusInterface $studentOnlineExamStatus, ClassSubjectInterface $classSubjects, SessionYearInterface $sessionYear, OnlineExamCommonInterface $onlineExamCommon, SessionYearsTrackingsService $sessionYearsTrackingsService) {
         $this->classSection = $classSection;
         $this->subjectTeacher = $subjectTeacher;
         $this->onlineExam = $onlineExam;
@@ -50,7 +54,8 @@ class OnlineExamController extends Controller {
         $this->studentOnlineExamStatus = $studentOnlineExamStatus;
         $this->classSubjects = $classSubjects;
         $this->sessionYear = $sessionYear;
-        
+        $this->onlineExamCommon = $onlineExamCommon;
+        $this->sessionYearsTrackingsService = $sessionYearsTrackingsService;
     }
 
     public function index() {
@@ -67,16 +72,19 @@ class OnlineExamController extends Controller {
 
         $sessionYear = $this->sessionYear->builder()->pluck('name','id');
         $defaultSessionYear = $this->cache->getDefaultSessionYear();
+        $rand_key = random_int(100000, 999999);
 
-        return response(view('online_exam.index', compact('classSections', 'subjectTeachers','classSubjects','sessionYear','defaultSessionYear')));
+        return response(view('online_exam.index', compact('classSections', 'subjectTeachers','classSubjects','sessionYear','defaultSessionYear','rand_key')));
     }
 
     public function store(Request $request) {
         ResponseService::noFeatureThenRedirect('Exam Management');
         ResponseService::noPermissionThenRedirect('online-exam-create');
+        $section_ids = is_array($request->class_section_id) ? $request->class_section_id : [$request->class_section_id];
         $request->validate([
-            'class_section_id' => 'required',
-            'class_subject_id' => 'required',
+            'class_section_id'      => 'required|array',
+            'class_section_id.*'    => 'numeric',
+            'subject_id' => 'required',
             'title'            => 'required',
             'exam_key'         => 'required|unique:online_exams,exam_key,NULL,id,school_id,' . Auth::user()->school_id,
             'duration'         => 'required|numeric|gte:1',
@@ -87,21 +95,67 @@ class OnlineExamController extends Controller {
         try {
 
             DB::beginTransaction();
-
             $sessionYear = $this->cache->getDefaultSessionYear();
-            $onlineExamData = array(
-                'class_section_id' => $request->class_section_id,
-                'class_subject_id' => $request->class_subject_id,
-                'title'            => htmlspecialchars($request->title),
-                'exam_key'         => $request->exam_key,
-                'duration'         => $request->duration,
-                'start_date'       => date('Y-m-d H:i:s', strtotime($request->start_date)),
-                'end_date'         => date('Y-m-d H:i:s', strtotime($request->end_date)),
-                'session_year_id'  => $sessionYear->id,
-            );
+            // $onlineExamData = array(
+            //     'class_section_id' => $request->class_section_id,
+            //     'class_subject_id' => $request->class_subject_id,
+            //     'title'            => htmlspecialchars($request->title),
+            //     'exam_key'         => $request->exam_key,
+            //     'duration'         => $request->duration,
+            //     'start_date'       => date('Y-m-d H:i:s', strtotime($request->start_date)),
+            //     'end_date'         => date('Y-m-d H:i:s', strtotime($request->end_date)),
+            //     'session_year_id'  => $sessionYear->id,
+            // );
 
-            $this->onlineExam->create($onlineExamData);
+            $onlineExamList = [];
+            foreach ($section_ids as $section_id) {
+                $onlineExamList = array_merge($request->all(), ['class_section_id' => $section_id]);
+            }
 
+            // Get the related class subject for each section
+            if ($request->class_section_id) {
+                foreach ($request->class_section_id as $section_id) {
+                    if (Auth::user()->hasRole('School Admin')) {
+                        $classSection = $this->classSection->builder()->where('id', $section_id)->with(['class_subject' => function ($q) use ($request) {
+                            $q->where('subject_id', $request->subject_id);
+                        }])->first();
+                        $onlineExamList['exam_key'] = $request->exam_key;
+                        $onlineExamList['class_subject_id'] = $classSection->class_subject->id;
+                        $onlineExamList['session_year_id'] = $sessionYear->id;
+                    } else {
+                        // dd($section_id,$request->subject_id);
+                        $classSection = $this->classSection->builder()->where('id', $section_id)->with(['class_subject' => function ($q) use ($request) {
+                            $q->where('subject_id', $request->subject_id);
+                        }])->first();
+                        $subjectTeacher = $this->subjectTeacher->builder()->where('class_section_id', $section_id)->where('subject_id', $request->subject_id)->first();
+                        // dd($classSection);
+                        $onlineExamList['exam_key'] = $request->exam_key;
+                        $onlineExamList['class_subject_id'] = $subjectTeacher->class_subject_id;
+                        $onlineExamList['session_year_id'] = $sessionYear->id;
+                    }
+                }
+            }
+
+            unset($onlineExamList['subject_id']);
+
+            $onlineExam = $this->onlineExam->create($onlineExamList);
+
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExam', $onlineExam->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
+            $onlineExamCommonData = [];
+            $onlineExamCommonData['online_exam_id'] = $onlineExam->id;
+
+            // Create online_exam_common data for each section
+            foreach ($section_ids as $section_id) {
+                $classSection = $this->classSection->builder()->where('id', $section_id)->with('class')->first();
+
+                $onlineExamCommonData['class_section_id'] = $section_id;
+                $subjectTeacher = $this->subjectTeacher->builder()->where('class_section_id', $section_id)->where('subject_id', $request->subject_id)->first();
+                $onlineExamCommonData['class_subject_id'] = $subjectTeacher->class_subject_id;
+                $this->onlineExamCommon->create($onlineExamCommonData);
+
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExamCommon', $onlineExamCommonData['class_section_id'], Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
         } catch (Throwable $e) {
@@ -124,7 +178,7 @@ class OnlineExamController extends Controller {
         $subject_id = request('subject_id');
         $session_year_id = request('session_year_id');
 
-        $sql = $this->onlineExam->builder()->with('class_section', 'class_subject.subject', 'question_choice')
+        $sql = $this->onlineExam->builder()->with('class_section', 'class_subject.subject', 'question_choice','online_exam_commons')
             //search query
             ->where(function ($query) use ($search) {
                 $query->when($search, function ($query) use ($search) {
@@ -139,7 +193,11 @@ class OnlineExamController extends Controller {
                 $query->onlyTrashed();
             })
             ->when(request('class_section_id') != null, function ($query) {
-                $query->where('class_section_id', request('class_section_id'));
+                // $query->where('class_section_id', request('class_section_id'));
+                $class_id = request('class_section_id');
+                $query->whereHas('online_exam_commons', function ($q) use ($class_id) {
+                    $q->where('class_section_id', $class_id);
+                });
             })
             ->when(request('class_subject_id') != null, function ($query) {
                 $query->where('class_subject_id', request('class_subject_id'));
@@ -162,6 +220,14 @@ class OnlineExamController extends Controller {
         $no = 1;
         foreach ($res as $row) {
             $operate = '';
+            $onlineExamCommons = $row->online_exam_commons->map(function ($common) {
+                return $common->class_section ? $common->class_section->full_name : null;
+            });
+            
+            $onlineExamCommons->filter()->map(function ($name) {
+                return "{$name},";
+            })->toArray();
+
             if ($showDeleted) {
                 //Show Restore and Hard Delete Buttons
                 $operate .= BootstrapTableService::menuRestoreButton('restore',route('online-exam.restore', $row->id));
@@ -182,7 +248,7 @@ class OnlineExamController extends Controller {
 
             $tempRow = $row->toArray();
             $tempRow['no'] = $no++;
-            $tempRow['class_section_name'] = $row->class_section->full_name;
+            $tempRow['class_section_with_medium'] =  $onlineExamCommons;
             $tempRow['subject_name'] = $row->subject_with_name;
             $tempRow['title'] = htmlspecialchars_decode($row->title);
             $tempRow['start_date'] = date('Y-m-d H:i', strtotime($row->start_date));
@@ -237,6 +303,8 @@ class OnlineExamController extends Controller {
         try {
             DB::beginTransaction();
             $this->onlineExam->deleteById($id);
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExam', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
             DB::commit();
             ResponseService::successResponse('Data Deleted Successfully');
         } catch (Throwable $e) {
@@ -305,6 +373,9 @@ class OnlineExamController extends Controller {
             );
             $onlineExamQuestion = $this->onlineExamQuestion->create($onlineExamQuestionData);
 
+            $sessionYear = $this->cache->getDefaultSessionYear();
+            $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExamQuestion', $onlineExamQuestion->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+
             $onlineExamOptionData = array();
             foreach ($request->option_data as $key => $optionValue) {
                 $onlineExamOptionData[$key] = array(
@@ -319,7 +390,13 @@ class OnlineExamController extends Controller {
                     }
                 }
             }
-            $this->onlineExamQuestionOption->createBulk($onlineExamOptionData);
+
+            foreach ($onlineExamOptionData as $option) {
+                $onlineExamQuestionOption = $this->onlineExamQuestionOption->create($option);
+                $sessionYear = $this->cache->getDefaultSessionYear();
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExamQuestionOption', $onlineExamQuestionOption->id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
+            }
+
             DB::commit();
 
             ResponseService::successResponse('Data Stored Successfully', array(
@@ -439,6 +516,8 @@ class OnlineExamController extends Controller {
                 );
             }
             $this->onlineExamQuestionChoice->upsert($onlineExamQuestionChoiceData, ["id"], ['online_exam_id', 'question_id', 'marks']);
+            // $sessionYear = $this->cache->getDefaultSessionYear();
+            // $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExamQuestionChoice', $onlineExamQuestionChoiceData['question_id'], Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
 
             DB::commit();
             ResponseService::successResponse('Data Stored Successfully');
@@ -459,6 +538,8 @@ class OnlineExamController extends Controller {
             } else {
                 DB::beginTransaction();
                 $this->onlineExamQuestionChoice->deleteById($id);
+                $sessionYear = $this->cache->getDefaultSessionYear();
+                $this->sessionYearsTrackingsService->storeSessionYearsTracking('App\Models\OnlineExamQuestionChoice', $id, Auth::user()->id, $sessionYear->id, Auth::user()->school_id, null);
                 DB::commit();
                 ResponseService::successResponse('Data Deleted Successfully');
             }

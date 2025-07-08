@@ -20,34 +20,42 @@
                                 {{ __('create_online_exam') }}
                             </h4>
                             <form class="pt-3 mt-6" id="create-form" method="POST" action="{{ route('online-exam.store') }}">
+                                {{-- {!! Form::hidden('user_id', Auth::user()->id, ['id' => 'user_id']) !!} --}}
                                 <div class="row">
                                     <div class="form-group col-md-6">
                                         <label>{{ __('Class Section') }} <span class="text-danger">*</span></label>
-                                        <select required name="class_section_id" id="class-section-id" class="form-control select2 online-exam-class-section-id" style="width:100%;" tabindex="-1" aria-hidden="true">
-                                            <option value="">--- {{ __('select') . ' ' . __('Class Section') }} ---</option>
+                                        <select name="class_section_id[]" required id="class-section-id" class="form-control select2 online-exam-class-section-id select2-dropdown select2-hidden-accessible" style="width:100%;" tabindex="-1" aria-hidden="true" multiple>
+                                            {{-- <option value="">--- {{ __('select') . ' ' . __('Class Section') }} ---</option> --}}
                                             @foreach ($classSections as $data)
-                                                <option value="{{ $data->id }}" data-class-id="{{ $data->class_id }}">
+                                                <option value="{{ $data->class_id }}" data-class-id="{{ $data->class_id }}" data-section-id="{{ $data->section_id }}">
                                                     {{ $data->full_name }}
                                                 </option>
                                             @endforeach
                                         </select>
+                                        <div class="form-check w-fit-content">
+                                            <label class="form-check-label user-select-none">
+                                                <input type="checkbox" class="form-check-input" id="select-all" value="1">{{__("Select All")}}
+                                            </label>
+                                        </div>
                                     </div>
                                     <div class="form-group col-md-6">
+                                        
                                         <label>{{ __('subject') }} <span class="text-danger">*</span></label>
                                         @if (Auth::user()->hasRole('School Admin'))
-                                            <select required name="class_subject_id" id="class-subject-id" class="form-control">
+                                            <select required name="subject_id" id="subject-id" class="form-control">
                                                 <option value="">-- {{ __('Select Subject') }} --</option>
                                                 <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
                                                 @foreach ($classSubjects as $item)
-                                                    <option value="{{ $item->id }}" data-class-id="{{ $item->class_id }}">{{ $item->subject_with_name}}</option>
+                                                    <option value="{{ $item->subject_id }}" data-class-section="{{ $item->class_id }}">{{ $item->subject_with_name}}</option>
                                                 @endforeach
                                             </select>
                                         @else
-                                            <select required name="class_subject_id" id="subject-id" class="form-control">
+                                        {!! Form::hidden('user_id', Auth::user()->id, ['id' => 'user_id']) !!}
+                                            <select required name="subject_id" id="subject-id" class="form-control">
                                                 <option value="">-- {{ __('Select Subject') }} --</option>
                                                 <option value="data-not-found">-- {{ __('no_data_found') }} --</option>
                                                 @foreach ($subjectTeachers as $item)
-                                                    <option value="{{ $item->class_subject_id }}" data-class-section="{{ $item->class_section_id }}">{{ $item->subject_with_name}}</option>
+                                                    <option value="{{ $item->subject_id }}" data-class-section="{{ $item->class_section_id }}" data-user="{{ Auth::user()->id }}">{{ $item->subject_with_name}}</option>
                                                 @endforeach
                                             </select>
                                         @endif
@@ -61,7 +69,7 @@
                                     </div>
                                     <div class="form-group col-md-4 col-lg-4 col-xl-2">
                                         <label>{{ __('exam_key') }} <span class="text-danger">*</span></label>
-                                        {!! Form::number('exam_key', "", ['required','id' => "key","placeholder" => trans('exam_key'),"class" => "form-control","min" => 1]) !!}
+                                        {!! Form::number('exam_key', "", ['required','id' => "key","placeholder" => trans('exam_key'),"class" => "form-control","min" => 1,'readonly' => true]) !!}
                                     </div>
                                     <div class="form-group col-md-4 col-lg-4 col-xl-2">
                                         <label>{{ __('duration') }} <span class="text-danger">*</span> <span class="text-info small">( {{__('in_minutes')}} )</span></label>
@@ -124,11 +132,11 @@
                                         <option value="">-- {{ __('Select Subject') }} --</option>
                                         {{-- <option value="data-not-found">-- {{ __('no_data_found') }} --</option> --}}
                                         @foreach ($classSubjects as $item)
-                                            <option value="{{ $item->id }}" data-class-id="{{ $item->class_id }}">{{ $item->subject_with_name}}</option>
+                                        <option value="{{ $item->subject_id }}" data-class-section="{{ $item->class_section_id }}" data-user="{{ Auth::user()->id }}">{{ $item->subject_with_name}}</option>
                                         @endforeach
                                     </select>
                                 @else
-                                    <select name="class_subject_id" id="filter-subject-id" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
+                                    <select name="subject_id" id="filter-subject-id" class="form-control select2" style="width:100%;" tabindex="-1" aria-hidden="true">
                                         <option value="">-- {{ __('Select Subject') }} --</option>
                                         {{-- <option value="data-not-found">-- {{ __('no_data_found') }} --</option> --}}
                                         @foreach ($subjectTeachers as $item)
@@ -152,7 +160,7 @@
                             <tr>
                                 <th scope="col" data-field="id" data-sortable="true" data-visible="false">{{ __('id') }}</th>
                                 <th scope="col" data-field="no">{{ __('no.') }}</th>
-                                <th scope="col" data-field="class_section_name">{{ __('class_section') }}</th>
+                                <th scope="col" data-field="class_section_with_medium" data-formatter="ClassSectionFormatter">{{ __('class_section') }}</th>
                                 <th scope="col" data-field="subject_name">{{ __('subject') }}</th>
                                 <th scope="col" data-field="title">{{ __('title') }}</th>
                                 <th scope="col" data-field="exam_key" data-align="center">{{ __('exam_key')}}</th>
@@ -192,7 +200,7 @@
                         <div class="row">
                             <div class="form-group col-md-6">
                                 <label>{{ __('exam') }} {{__('key')}} <span class="text-danger">*</span></label>
-                                <input type="number" id="edit-online-exam-key" required name="edit_exam_key" placeholder="{{ __('exam_key') }}" class="form-control"/>
+                                <input type="number" id="edit-online-exam-key" required readonly name="edit_exam_key" placeholder="{{ __('exam_key') }}" class="form-control"/>
                             </div>
                             <div class="form-group col-md-6">
                                 <label>{{ __('duration') }} <span class="text-danger">*</span></label><span class="text-info small">( {{__('in_minutes')}} )</span>
@@ -218,4 +226,28 @@
             </div>
         </div>
     </div>
+@endsection
+@section('js')
+    <script>
+        $(document).ready(function () {
+
+            function random_exam_key() { 
+                return Math.floor(100000 + Math.random() * 900000);
+            }
+
+            // Initialize the exam key if not set
+            if ($("#key").val() === "") {
+                let rndInt = random_exam_key();
+                $('#key').attr("value", rndInt);
+            }
+
+            // Generate a new exam key when the form is submitted
+            $("form").submit(function(event) {
+                event.preventDefault();
+                let rndInt = random_exam_key();
+                $('#key').attr("value", rndInt);
+            });
+
+        });
+    </script>
 @endsection

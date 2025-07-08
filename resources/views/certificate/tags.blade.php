@@ -21,7 +21,9 @@
     <a data-value="{session_year}" class="btn btn-gradient-light btn_tag mt-2">{ {{ __('session_year') }} }</a>
 
     @foreach ($formFields as $formField)
-        <a data-value="{{ '{'.$formField->name.'}' }}" class="btn btn-gradient-light btn_tag mt-2">{ {{ __($formField->name) }} }</a>
+        @if ($formField->user_type == 1) <!-- 1 => Student -->
+            <a data-value="{{ '{'.$formField->name.'}' }}" class="btn btn-gradient-light btn_tag mt-2">{ {{ __($formField->name) }} }</a>
+        @endif
     @endforeach
 </div>
 <div id="staff_tags">
@@ -40,4 +42,9 @@
     <a data-value="{experience}" class="btn btn-gradient-light btn_tag mt-2">{ {{ __('experience') }} }</a>
     <a data-value="{session_year}" class="btn btn-gradient-light btn_tag mt-2">{ {{ __('session_year') }} }</a>
     
+    @foreach ($formFields as $formField)
+        @if ($formField->user_type == 2) <!-- 2 => Staff -->
+            <a data-value="{{ '{'.$formField->name.'}' }}" class="btn btn-gradient-light btn_tag mt-2">{ {{ __($formField->name) }} }</a>
+        @endif
+    @endforeach
 </div>

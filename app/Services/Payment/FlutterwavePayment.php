@@ -352,6 +352,7 @@ class FlutterwavePayment implements PaymentInterface {
     public function minimumAmountValidation($currency, $amount) {
 
         $currencies = array(
+            'UGX' => 2000,
             'USD' => 0.50,
             'AED' => 2.00,
             'AUD' => 0.50,

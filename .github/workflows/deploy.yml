@@ -62,6 +62,6 @@ jobs:
         script: |
           cd /var/www/sms-laravel
           composer install --no-dev --optimize-autoloader
-          cp .env.example .env || true
+          cp .env.example .envv || true
           
     

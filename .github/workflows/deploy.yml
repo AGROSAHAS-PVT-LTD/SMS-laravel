@@ -70,7 +70,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          
+          cd /var/www/sms-laravel
           mkdir -p bootstrap/cache storage/framework/{cache,sessions,views} storage/logs
           
           composer install --no-dev --optimize-autoloader

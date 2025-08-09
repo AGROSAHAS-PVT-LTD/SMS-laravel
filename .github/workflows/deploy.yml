@@ -17,22 +17,21 @@ jobs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: '8.2'
-        extensions: mbstring, xml, zip, curl, mysql
+        extensions: mbstring, xml, zip, curl, mysql, gd
         tools: composer:v2
 
-    - name: 🧩 Install Composer Dependencies
-      run: composer install --optimize-autoloader --no-dev --no-progress --no-interaction --prefer-dist
+    - name: 📦 Install Composer Dependencies
+      run: composer install --optimize-autoloader --no-dev
 
     - name: 🧱 Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '20'
 
-    - name: 📦 Install NPM Dependencies
+    - name: 🎨 Build Frontend
       run: |
         npm ci
-        npx update-browserslist-db@latest
-        npm install vue-loader@latest
+        npm run build
 
     - name: Prepare Remote Directory
       uses: appleboy/ssh-action@master
@@ -42,7 +41,8 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 22
         script: |
-          sudo chown -R deployer:deployer /var/www/sms-laravel
+          sudo mkdir -p /var/www/sms-laravel
+          sudo chown -R $USER:$USER /var/www/sms-laravel
 
     - name: 🚀 Synchronize Files to Server
       uses: easingthemes/ssh-deploy@v2.1.5
@@ -60,8 +60,6 @@ jobs:
           --exclude vendor
           --exclude .git
           --exclude .github
-          --exclude storage
-          --exclude bootstrap/cache
 
     - name: ⚙️ Run Remote Laravel Artisan Commands
       uses: appleboy/ssh-action@v0.1.6
@@ -71,15 +69,6 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           cd /var/www/sms-laravel
-          mkdir -p bootstrap/cache storage/framework/{cache,sessions,views} storage/logs
-          
           composer install --no-dev --optimize-autoloader
-          cp .env.example .envv || true
-          
-          # Set proper permissions
-          sudo chown -R www-data:www-data .
+          sudo chown -R www-data:www-data storage bootstrap/cache
           sudo chmod -R 775 storage bootstrap/cache
-
-          
-          
-    

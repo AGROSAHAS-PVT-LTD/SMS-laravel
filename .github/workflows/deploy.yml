@@ -28,11 +28,7 @@ jobs:
       with:
         node-version: '20'
 
-    - name: 🎨 Build Frontend
-      run: |
-        npm ci
-        npm run build
-
+   
     - name: Prepare Remote Directory
       uses: appleboy/ssh-action@master
       with:

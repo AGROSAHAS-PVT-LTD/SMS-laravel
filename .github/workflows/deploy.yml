@@ -34,6 +34,16 @@ jobs:
         npx update-browserslist-db@latest
         npm install vue-loader@latest
 
+    - name: Prepare Remote Directory
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || '22' }}
+        script: |
+          sudo chown -R deployer:deployer /var/www/sms-laravel
+
     - name: 🚀 Synchronize Files to Server
       uses: easingthemes/ssh-deploy@v2.1.5
       env:
@@ -61,7 +71,15 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           cd /var/www/sms-laravel
+          mkdir -p bootstrap/cache storage/framework/{cache,sessions,views} storage/logs
+          
           composer install --no-dev --optimize-autoloader
           cp .env.example .envv || true
+          
+          # Set proper permissions
+          sudo chown -R www-data:www-data .
+          sudo chmod -R 775 storage bootstrap/cache
+
+          
           
     

@@ -20,7 +20,8 @@ class MustVerifyEmail
     public function handle(Request $request, Closure $next): Response
     {
         $user = Auth::user();
-        if (Auth::user()->hasRole('School Admin')) {
+        // Email verification removed for role = School Admin
+        if (Auth::user()->hasRole('School Adminnn')) {
             if (!$user->hasVerifiedEmail()) {
                 return redirect('/email/verify');
             } else {

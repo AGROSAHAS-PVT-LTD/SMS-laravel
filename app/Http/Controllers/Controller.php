@@ -87,6 +87,8 @@ class Controller extends BaseController {
             return redirect('/dashboard');
         }
 
+        return redirect('/login');
+
         // School website
         $fullDomain = $_SERVER['HTTP_HOST'];
         $fullDomain = str_replace("www.", "", $fullDomain);
@@ -749,7 +751,7 @@ class Controller extends BaseController {
             $user = Auth::user();
             if (!$user->hasVerifiedEmail()) {
                 $now = Carbon::now();
-                if ($now->diffInHours($user->updated_at) >= 2) {
+                if ($now->diffInHours($user->updated_at) >= 1) {
                     // Send the verification email
                     $user->sendEmailVerificationNotification();
 

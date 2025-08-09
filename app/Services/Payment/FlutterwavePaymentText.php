@@ -3,7 +3,7 @@ namespace App\Services\Payment;
 use Auth;
 use Exception;
 use Log;
-class FlutterwavePayment implements PaymentInterface {
+class FlutterwavePaymentText implements PaymentInterface {
     private string $secretKey;
     private string $currencyCode;
     public function __construct($secretKey, $currencyCode) {

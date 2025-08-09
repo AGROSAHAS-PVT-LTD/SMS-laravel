@@ -973,7 +973,8 @@ class SchoolController extends Controller {
                     'email'      => $request->school_email,
                     'password'   => Hash::make($request->school_phone),
                     'school_id'  => $schoolData->id,
-                    'image'      => 'dummy_logo.jpg'
+                    'image'      => 'dummy_logo.jpg',
+                    'email_verified_at' => Carbon::now(),
                 );
                
                 $user = $this->userRepository->create($admin_data);

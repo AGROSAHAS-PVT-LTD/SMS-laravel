@@ -177,9 +177,6 @@ class LoginController extends Controller
                 $data = DB::table('users')->where('email',$request->email)->first();
 
                 if ($data) {
-                    if($request->email = 'superadmin@gmail.com'){
-                        return redirect()->intended('/dashboard');
-                    }
                     if (( $data->two_factor_secret == null || $data->two_factor_expires_at == null ) && $data->two_factor_enabled == 1 && $request->email != 'demo@school.com' && !env('DEMO_MODE')) {
                        
                         $twoFACode = $this->generate2FACode();

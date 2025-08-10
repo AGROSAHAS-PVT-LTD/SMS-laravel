@@ -95,7 +95,7 @@ class StudentApiController extends Controller {
     }
 
 
-    #[NoReturn] public function login(Request $request) {
+    public function login(Request $request) {
         $validator = Validator::make($request->all(), [
             'gr_number' => 'required',
             'password' => 'required',

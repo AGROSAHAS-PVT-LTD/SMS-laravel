@@ -115,7 +115,7 @@ class TeacherApiController extends Controller
         $this->assignmentCommon = $assignmentCommon;
     }
 
-    #[NoReturn] public function login(Request $request)
+    public function login(Request $request)
     {
 
         $validator = Validator::make($request->all(), [

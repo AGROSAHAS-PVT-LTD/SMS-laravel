@@ -975,6 +975,8 @@ class SchoolController extends Controller {
                     'school_id'  => $schoolData->id,
                     'image'      => 'dummy_logo.jpg',
                     'email_verified_at' => Carbon::now(),
+                    'verified'          => true, 
+                    'status'        => 1,
                 );
                
                 $user = $this->userRepository->create($admin_data);
